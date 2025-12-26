@@ -1,0 +1,8 @@
+package rules
+
+rule "example"
+when
+    $f : Fact()
+then
+    $f.recommendation = "bike";
+end

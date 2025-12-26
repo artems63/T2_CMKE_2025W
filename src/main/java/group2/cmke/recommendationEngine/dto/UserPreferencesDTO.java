@@ -1,0 +1,146 @@
+package group2.cmke.recommendationEngine.dto;
+
+// This DTO represents the userpreferences part of the JSON input file for our drools rules engine.
+// This information is given by the user himself from the frontend.
+public class UserPreferencesDTO {
+  public boolean environmentally_sustainable;
+  public boolean owns_non_electric_transport;
+  public boolean owns_electric_micro_mobility;
+  public boolean owns_gas_car;
+  public boolean owns_electric_car;
+  public boolean has_public_transport_ticket;
+  public boolean is_open_to_buy_ticket;
+  public boolean wants_bike_sharing;
+  public boolean wants_public_transport;
+  public boolean weather_ok;
+  public String preferred_transport_mode;
+  public double lat;
+  public double lon;
+  public String destination_diva;
+  public String destination_text;
+  public double destination_lat;
+  public double destination_lon;
+
+  public boolean isEnvironmentally_sustainable() {
+    return environmentally_sustainable;
+  }
+
+  public void setEnvironmentally_sustainable(boolean environmentally_sustainable) {
+    this.environmentally_sustainable = environmentally_sustainable;
+  }
+
+  public boolean isOwns_non_electric_transport() {
+    return owns_non_electric_transport;
+  }
+
+  public void setOwns_non_electric_transport(boolean owns_non_electric_transport) {
+    this.owns_non_electric_transport = owns_non_electric_transport;
+  }
+
+  public boolean isOwns_electric_micro_mobility() {
+    return owns_electric_micro_mobility;
+  }
+
+  public void setOwns_electric_micro_mobility(boolean owns_electric_micro_mobility) {
+    this.owns_electric_micro_mobility = owns_electric_micro_mobility;
+  }
+
+  public boolean isOwns_gas_car() {
+    return owns_gas_car;
+  }
+
+  public void setOwns_gas_car(boolean owns_gas_car) {
+    this.owns_gas_car = owns_gas_car;
+  }
+
+  public boolean isOwns_electric_car() {
+    return owns_electric_car;
+  }
+
+  public void setOwns_electric_car(boolean owns_electric_car) {
+    this.owns_electric_car = owns_electric_car;
+  }
+
+  public boolean isHas_public_transport_ticket() {
+    return has_public_transport_ticket;
+  }
+
+  public void setHas_public_transport_ticket(boolean has_public_transport_ticket) {
+    this.has_public_transport_ticket = has_public_transport_ticket;
+  }
+
+  public boolean isIs_open_to_buy_ticket() {
+    return is_open_to_buy_ticket;
+  }
+
+  public void setIs_open_to_buy_ticket(boolean is_open_to_buy_ticket) {
+    this.is_open_to_buy_ticket = is_open_to_buy_ticket;
+  }
+
+  public boolean isWants_bike_sharing() {
+    return wants_bike_sharing;
+  }
+
+  public void setWants_bike_sharing(boolean wants_bike_sharing) {
+    this.wants_bike_sharing = wants_bike_sharing;
+  }
+
+  public boolean isWants_public_transport() {
+    return wants_public_transport;
+  }
+
+  public void setWants_public_transport(boolean wants_public_transport) {
+    this.wants_public_transport = wants_public_transport;
+  }
+
+  public String getPreferred_transport_mode() {
+    return preferred_transport_mode;
+  }
+
+  public void setPreferred_transport_mode(String preferred_transport_mode) {
+    this.preferred_transport_mode = preferred_transport_mode;
+  }
+
+  public double getLat() {
+    return lat;
+  }
+
+  public void setLat(double lat) {
+    this.lat = lat;
+  }
+
+  public double getLon() {
+    return lon;
+  }
+
+  public void setLon(double lon) {
+    this.lon = lon;
+  }
+
+  public boolean weather_ok() {
+    return weather_ok;
+  }
+
+  public void setWeather_ok(boolean rain) {
+    this.weather_ok = rain;
+  }
+
+  @Override
+  public String toString() {
+    return "UserPreferencesDTO{" +
+        "environmentally_sustainable=" + environmentally_sustainable +
+        ", owns_non_electric_transport=" + owns_non_electric_transport +
+        ", owns_electric_micro_mobility=" + owns_electric_micro_mobility +
+        ", owns_gas_car=" + owns_gas_car +
+        ", weather_ok=" + weather_ok +
+        ", owns_electric_car=" + owns_electric_car +
+        ", has_public_transport_ticket=" + has_public_transport_ticket +
+        ", is_open_to_buy_ticket=" + is_open_to_buy_ticket +
+        ", wants_bike_sharing=" + wants_bike_sharing +
+        ", wants_public_transport=" + wants_public_transport +
+        ", preferred_transport_mode='" + preferred_transport_mode + '\'' +
+        ", lat=" + lat +
+        ", lon=" + lon +
+        '}';
+  }
+}

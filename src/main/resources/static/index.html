@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Mobility Recommendation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(to bottom, #f9fff9, #e8f6e8);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 20px 30px;
+            margin: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+        }
+        h1, h2 { color: #2a6f2b; }
+        label { display: block; margin: 10px 0 5px 0; font-weight: bold; }
+
+        .switch { position: relative; display: inline-block; width: 50px; height: 26px; margin-bottom: 10px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: 0.4s; border-radius: 26px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: 0.4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #4CAF50; }
+        input:checked + .slider:before { transform: translateX(24px); }
+
+        .multi-select button {
+            margin: 5px 5px 5px 0;
+            padding: 8px 12px;
+            border: 1px solid #4CAF50;
+            border-radius: 6px;
+            background-color: #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
+        }
+        .multi-select button.selected { background-color: #4CAF50; color: white; }
+
+        select {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #4CAF50;
+            background-color: #fff;
+            width: 100%;
+            max-width: 100%;
+            margin-bottom: 15px;
+            color: #000;
+        }
+
+        .submit-btn {
+            background-color: #2a6f2b;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        .submit-btn:hover { background-color: #3f9c3f; }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #f0fff0;
+            border: 1px solid #4CAF50;
+            min-height: 50px;
+            white-space: pre-wrap;
+        }
+        
+        #spinner {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #2a6f2b;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 600px) {
+            .container { margin: 10px; padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Smart Mobility Preferences</h1>
+
+    <label>Environmentally Sustainable?</label>
+    <label class="switch">
+        <input type="checkbox" id="sustainable">
+        <span class="slider"></span>
+    </label>
+
+    <label>Public Transport Ticket available?</label>
+    <label class="switch">
+        <input type="checkbox" id="ownsTicket">
+        <span class="slider"></span>
+    </label>
+
+    <label>Open to Buy Ticket?</label>
+    <label class="switch">
+        <input type="checkbox" id="openToBuyTicket">
+        <span class="slider"></span>
+    </label>
+
+    <label>Weather suits active travel?</label>
+    <label class="switch">
+        <input type="checkbox" id="weather_ok" checked>
+        <span class="slider"></span>
+    </label>
+
+    <label>Owned Form of Transport</label>
+    <div class="multi-select" id="ownedTransport">
+        <button>Electric Car</button>
+        <button>Gas Car</button>
+        <button>Bike</button>
+        <button>E-Bike</button>
+        <button>Scooter</button>
+        <button>E-Scooter</button>
+    </div>
+
+    <label>Preferred Form of Transport</label>
+    <div class="multi-select" id="preferredTransport">
+        <button>Walking</button>
+        <button>Bike</button>
+        <button>Gas Car</button>
+        <button>Electric Car</button>
+        <button>Scooter</button>
+        <button>E-Scooter</button>
+        <button>E-Bike</button>
+        <button>Public Transport</button>
+    </div>
+
+    <label>Destination</label>
+    <select id="destination">
+        <option>Loading...</option>
+    </select>
+
+    <button class="submit-btn" id="submitBtn" onclick="submitPreferences()">Submit Preferences</button>
+
+    <div class="result" id="result">Recommendation will appear here!</div>
+</div>
+<div id="spinner"></div>
+
+<script>
+    async function loadDestinations() {
+        const response = await fetch('haltestellen.csv');
+        const csvText = await response.text();
+
+        const lines = csvText.split(/\r?\n/).filter(l => l.trim() !== '');
+        const headers = lines[0].split(';').map(h => h.trim());
+        const stopTextIndex = headers.indexOf('StopText');
+        const divaIndex = headers.indexOf('DIVA');
+        const lonIndex = headers.indexOf('Longitude');
+        const latIndex = headers.indexOf('Latitude');
+
+        const destinations = lines.slice(1).map(line => {
+            const cols = line.split(';').map(c => c.trim());
+            return {
+                name: cols[stopTextIndex],
+                diva: cols[divaIndex],
+                lon: parseFloat(cols[lonIndex]),
+                lat: parseFloat(cols[latIndex])
+            };
+        });
+
+        const select = document.getElementById('destination');
+        select.innerHTML = '';
+        destinations.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.diva;
+            opt.textContent = d.name;
+            opt.dataset.lon = d.lon;
+            opt.dataset.lat = d.lat;
+            select.appendChild(opt);
+        });
+    }
+    loadDestinations();
+
+    document.querySelectorAll('.multi-select').forEach(container => {
+        container.querySelectorAll('button').forEach(button => {
+            button.addEventListener('click', e => {
+                e.preventDefault();
+                button.classList.toggle('selected');
+            });
+        });
+    });
+
+    async function submitPreferences() {
+        const spinner = document.getElementById('spinner');
+        spinner.style.display = 'block';
+
+        const environmentally_sustainable = document.getElementById('sustainable').checked;
+        const has_public_transport_ticket = document.getElementById('ownsTicket').checked;
+        const is_open_to_buy_ticket = document.getElementById('openToBuyTicket').checked;
+        const weather_ok = document.getElementById('weather_ok').checked;
+
+        const ownedTransport = Array.from(document.querySelectorAll('#ownedTransport button.selected')).map(btn => btn.textContent);
+        const preferredTransport = Array.from(document.querySelectorAll('#preferredTransport button.selected')).map(btn => btn.textContent);
+
+        const owns_electric_car = ownedTransport.includes("Electric Car");
+        const owns_gas_car = ownedTransport.includes("Gas Car");
+        const owns_electric_micro_mobility = ownedTransport.includes("E-Bike") || ownedTransport.includes("E-Scooter");
+        const owns_non_electric_transport = ownedTransport.includes("Bike") || ownedTransport.includes("Scooter");
+
+        const wants_public_transport = preferredTransport.includes("Public Transport");
+        const wants_bike_sharing = preferredTransport.includes("Bike") || preferredTransport.includes("E-Bike");
+
+        const preferred_transport_mode = preferredTransport.length > 0 ? preferredTransport[0] : null;
+
+        // TO DELETE LATER - For now I use fixed coordinates inside vienna since i am not in town at
+        // the time of implementation.
+        const lat = 48.1988288;
+        const lon = 16.3064912;
+
+        const select = document.getElementById('destination');
+        const destinationDiva = select.value;
+        const destinationText = select.options[select.selectedIndex].text;
+        const destinationLon = parseFloat(select.options[select.selectedIndex].dataset.lon);
+        const destinationLat = parseFloat(select.options[select.selectedIndex].dataset.lat);
+
+        const data = {
+            environmentally_sustainable,
+            owns_non_electric_transport,
+            owns_electric_micro_mobility,
+            owns_gas_car,
+            owns_electric_car,
+            has_public_transport_ticket,
+            is_open_to_buy_ticket,
+            wants_bike_sharing,
+            wants_public_transport,
+            preferred_transport_mode,
+            lat,
+            lon,
+            destination_text: destinationText,
+            destination_diva: destinationDiva,
+            destination_lon: destinationLon,
+            destination_lat: destinationLat,
+            weather_ok
+        };
+
+        console.log("Sending UserPreferencesDTO:", data);
+
+        try {
+            const res = await fetch('/api/recommend', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            const json = await res.json();
+            document.getElementById('result').textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+            console.error(err);
+            document.getElementById('result').textContent = "Error contacting server";
+        } finally {
+            spinner.style.display = 'none';
+        }
+    }
+</script>
+</body>
+</html>
