@@ -37,6 +37,9 @@ public class RecommendationController {
 
   private double distanceToNextBikeStationMeters;
   private boolean bikesAvailableAtStation;
+
+  // Stop ID of the first stop for the desired route. It's set to -1 if no stop exists or the API
+  // does not work cause of the Wiener Linien or in offline mode.
   private Integer firstBoardingStopId;
 
   @Autowired
@@ -51,55 +54,63 @@ public class RecommendationController {
       double userLat, double userLon,
       String destinationDiva,
       double destinationLon, double destinationLat
-  ) throws Exception {
+  ) {
 
-    HaltestellenService.Stop originStop = haltestellenService.findClosestStop(userLat, userLon);
-    String originDiva = originStop.diva;
+    try {
 
-    HttpClient client = HttpClient.newHttpClient();
+      HaltestellenService.Stop originStop =
+          haltestellenService.findClosestStop(userLat, userLon);
+      String originDiva = originStop.diva;
 
-    // Request with DIVA number.
-    URI divaUri = UriComponentsBuilder
-        .fromUriString("https://www.wienerlinien.at/ogd_routing/XML_TRIP_REQUEST2")
-        .queryParam("type_origin", "diva")
-        .queryParam("name_origin", originDiva)
-        .queryParam("type_destination", "diva")
-        .queryParam("name_destination", destinationDiva)
-        .queryParam("language", "de")
-        .build()
-        .toUri();
+      HttpClient client = HttpClient.newHttpClient();
 
-    HttpResponse<String> divaResponse = client.send(
-        HttpRequest.newBuilder(divaUri).GET().build(),
-        HttpResponse.BodyHandlers.ofString()
-    );
+      // Request with DIVA number.
+      URI divaUri = UriComponentsBuilder
+          .fromUriString("https://www.wienerlinien.at/ogd_routing/XML_TRIP_REQUEST2")
+          .queryParam("type_origin", "diva")
+          .queryParam("name_origin", originDiva)
+          .queryParam("type_destination", "diva")
+          .queryParam("name_destination", destinationDiva)
+          .queryParam("language", "de")
+          .build()
+          .toUri();
 
-    String divaBody = divaResponse.body();
+      HttpResponse<String> divaResponse = client.send(
+          HttpRequest.newBuilder(divaUri).GET().build(),
+          HttpResponse.BodyHandlers.ofString()
+      );
 
-    // Check if the response is valid.
-    if (!divaBody.contains("<itdItinerary/>")) {
-      return divaBody; // success
+      String divaBody = divaResponse.body();
+
+      // Check if the response is valid.
+      if (!divaBody.contains("<itdItinerary/>")) {
+        return divaBody; // success
+      }
+
+      // Fallback to coordinates if DIVA request does not return a valid response.
+      String destCoord = destinationLat + ":" + destinationLon + ":WGS84";
+
+      URI coordUri = UriComponentsBuilder
+          .fromUriString("https://www.wienerlinien.at/ogd_routing/XML_TRIP_REQUEST2")
+          .queryParam("type_origin", "diva")
+          .queryParam("name_origin", originDiva)
+          .queryParam("type_destination", "coord")
+          .queryParam("name_destination", destCoord)
+          .queryParam("language", "de")
+          .build()
+          .toUri();
+
+      HttpResponse<String> coordResponse = client.send(
+          HttpRequest.newBuilder(coordUri).GET().build(),
+          HttpResponse.BodyHandlers.ofString()
+      );
+
+      return coordResponse.body();
+
+    } catch (Exception e) {
+      // If the API is down or we have no internet connection we proceed with no public transport.
+      return "<itdRequest></itdRequest>";
     }
-
-    // Fallback to coordinates if DIVA request does not return a valid response.
-    String destCoord = destinationLat + ":" + destinationLon + ":WGS84";
-
-    URI coordUri = UriComponentsBuilder
-        .fromUriString("https://www.wienerlinien.at/ogd_routing/XML_TRIP_REQUEST2")
-        .queryParam("type_origin", "diva")
-        .queryParam("name_origin", originDiva)
-        .queryParam("type_destination", "coord")
-        .queryParam("name_destination", destCoord)
-        .queryParam("language", "de")
-        .build()
-        .toUri();
-
-    HttpResponse<String> coordResponse = client.send(
-        HttpRequest.newBuilder(coordUri).GET().build(),
-        HttpResponse.BodyHandlers.ofString()
-    );
-
-    return coordResponse.body();
   }
 
   // Calculates the distance between user location and user destination in meters.
@@ -337,7 +348,7 @@ public class RecommendationController {
       this.firstBoardingStopId =
           Integer.parseInt(firstStopElement.getAttribute("stopID"));
     } else {
-      this.firstBoardingStopId = null;
+      this.firstBoardingStopId = -1;
     }
 
     String expression =
