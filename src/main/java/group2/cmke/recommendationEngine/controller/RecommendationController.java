@@ -55,7 +55,6 @@ public class RecommendationController {
       String destinationDiva,
       double destinationLon, double destinationLat
   ) {
-
     try {
 
       HaltestellenService.Stop originStop =
