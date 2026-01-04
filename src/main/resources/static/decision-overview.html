@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Mobility Decision Overview</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(to bottom, #f9fff9, #e8f6e8);
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+
+    .container {
+      background-color: #ffffff;
+      padding: 20px 30px;
+      margin: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      max-width: 800px;
+      width: 100%;
+    }
+
+    h1 {
+      color: #2a6f2b;
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-bottom: 20px;
+      color: #2a6f2b;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    .decision {
+      border: 1px solid #4CAF50;
+      background-color: #f0fff0;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+
+    .decision h3 {
+      margin-top: 0;
+      color: #2a6f2b;
+    }
+
+    .decision pre {
+      margin: 0;
+      white-space: pre-wrap;
+      font-size: 14px;
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        margin: 10px;
+        padding: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <a class="back-link" href="index.html">← Back to Preferences</a>
+
+  <h1>Smart Mobility Decision Overview</h1>
+
+  <div id="decisions">
+    Loading decisions!
+  </div>
+</div>
+
+<script>
+  async function loadDecisions() {
+    const container = document.getElementById('decisions');
+
+    try {
+      const response = await fetch('/api/decisionoverview');
+      const text = await response.text();
+
+      const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+
+      const decisions = lines.map(line => JSON.parse(line));
+
+      // Here we sort by our environmental_factor DESC!
+      decisions.sort((a, b) => (b.environmental_factor ?? 0) - (a.environmental_factor ?? 0));
+
+      container.innerHTML = '';
+
+      decisions.forEach((decision, index) => {
+        const div = document.createElement('div');
+        div.className = 'decision';
+
+        div.innerHTML = `
+                    <h3>Decision #${index + 1}</h3>
+                    <pre>${JSON.stringify(decision, null, 2)}</pre>
+                `;
+
+        container.appendChild(div);
+      });
+
+      if (decisions.length === 0) {
+        container.textContent = 'No decisions found.';
+      }
+
+    } catch (err) {
+      console.error(err);
+      container.textContent = 'Error loading decision overview.';
+    }
+  }
+
+  loadDecisions();
+</script>
+
+</body>
+</html>
