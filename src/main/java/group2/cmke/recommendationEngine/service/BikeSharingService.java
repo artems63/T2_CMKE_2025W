@@ -51,6 +51,10 @@ public class BikeSharingService {
   }
 
   public BikeStation findClosestStationWithBikes(double userLat, double userLon) {
+    // #region agent log
+    long startTime = System.currentTimeMillis();
+    int stationsCount = stations.size();
+    // #endregion
     BikeStation closest = null;
     double minDist = Double.MAX_VALUE;
 
@@ -65,6 +69,13 @@ public class BikeSharingService {
         closest = s;
       }
     }
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(System.getenv("DEBUG_LOG_PATH") != null ? System.getenv("DEBUG_LOG_PATH") : (System.getProperty("user.dir") + java.io.File.separator + ".cursor" + java.io.File.separator + "debug.log"), true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"D\",\"location\":\"BikeSharingService.findClosestStationWithBikes\",\"message\":\"Linear search completed\",\"data\":{\"durationMs\":%d,\"stationsSearched\":%d},\"timestamp\":%d}\n", System.currentTimeMillis() - startTime, stationsCount, System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
     return closest;
   }
 

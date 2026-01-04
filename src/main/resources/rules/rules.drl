@@ -21,6 +21,8 @@ when
   $f : Fact( context.distance_to_destination_meters > 8000 )
 then
   $f.disqualify(Mode.BIKE, "Biking is not suitable because the distance is too long.", drools.getRule().getName());
+  $f.disqualify(Mode.E_BIKE, "E-biking is not suitable because the distance is too long.", drools.getRule().getName());
+  $f.disqualify(Mode.BIKESHARE, "Bike sharing is not suitable because the distance is too long.", drools.getRule().getName());
 end
 
 rule "DQ: Bad weather disables bike and bike sharing"
@@ -29,6 +31,7 @@ when
   $f : Fact( preferences.weather_ok == false )
 then
   $f.disqualify(Mode.BIKE, "Biking is discouraged due to bad weather.", drools.getRule().getName());
+  $f.disqualify(Mode.E_BIKE, "E-biking is discouraged due to bad weather.", drools.getRule().getName());
   $f.disqualify(Mode.BIKESHARE, "Bike sharing is discouraged due to bad weather.", drools.getRule().getName());
 end
 
@@ -50,12 +53,44 @@ then
   $f.disqualify(Mode.BIKESHARE, "Bike sharing is not available because there are no bikes at the nearest station.", drools.getRule().getName());
 end
 
-rule "DQ: Car not available (user does not own gas car)"
+rule "DQ: Bike sharing not needed if user owns bike"
+salience 165
+when
+  $f : Fact( preferences.owns_non_electric_transport == true )
+then
+  $f.disqualify(Mode.BIKESHARE, "Bike sharing is not needed because you already own a bike.", drools.getRule().getName());
+end
+
+rule "DQ: Normal bike not available (user does not own non-electric transport)"
+salience 140
+when
+  $f : Fact( preferences.owns_non_electric_transport == false )
+then
+  $f.disqualify(Mode.BIKE, "A normal bike is not considered because you do not own one.", drools.getRule().getName());
+end
+
+rule "DQ: E-bike not available (user does not own e-bike)"
+salience 140
+when
+  $f : Fact( preferences.owns_e_bike == false )
+then
+  $f.disqualify(Mode.E_BIKE, "An e-bike is not considered because you do not own one.", drools.getRule().getName());
+end
+
+rule "DQ: Gas car not available (user does not own gas car)"
 salience 140
 when
   $f : Fact( preferences.owns_gas_car == false )
 then
-  $f.disqualify(Mode.CAR, "A car is not considered because you do not own a gas car.", drools.getRule().getName());
+  $f.disqualify(Mode.GAS_CAR, "A gas car is not considered because you do not own one.", drools.getRule().getName());
+end
+
+rule "DQ: Electric car not available (user does not own electric car)"
+salience 140
+when
+  $f : Fact( preferences.owns_electric_car == false )
+then
+  $f.disqualify(Mode.ELECTRIC_CAR, "An electric car is not considered because you do not own one.", drools.getRule().getName());
 end
 
 
@@ -87,9 +122,11 @@ when
 then
   $f.addScore(Mode.WALK, 40, "You prioritize sustainability, so walking is favored.", drools.getRule().getName());
   $f.addScore(Mode.BIKE, 40, "You prioritize sustainability, so biking is favored.", drools.getRule().getName());
+  $f.addScore(Mode.E_BIKE, 38, "You prioritize sustainability, so e-biking is favored.", drools.getRule().getName());
   $f.addScore(Mode.BIKESHARE, 35, "You prioritize sustainability, so bike sharing is favored.", drools.getRule().getName());
   $f.addScore(Mode.PUBLIC_TRANSPORT, 25, "You prioritize sustainability, so public transport is favored.", drools.getRule().getName());
-  $f.addScore(Mode.CAR, -30, "You prioritize sustainability, so driving a car is discouraged.", drools.getRule().getName());
+  $f.addScore(Mode.ELECTRIC_CAR, -10, "You prioritize sustainability, but electric cars are more sustainable than gas cars.", drools.getRule().getName());
+  $f.addScore(Mode.GAS_CAR, -30, "You prioritize sustainability, so driving a gas car is strongly discouraged.", drools.getRule().getName());
 end
 
 // Medium impact: has ticket
@@ -107,26 +144,37 @@ salience 70
 when
   $f : Fact( preferences.owns_non_electric_transport == true )
 then
-  $f.addScore(Mode.BIKE, 15, "You own a non-electric transport option, so biking is practical.", drools.getRule().getName());
+  $f.addScore(Mode.BIKE, 20, "You own a bike, so using your own bike is practical.", drools.getRule().getName());
 end
 
-// Distance band scoring
+// Medium impact: owns e-bike
+rule "SCORE: Owns e-bike boosts e-bike"
+salience 70
+when
+  $f : Fact( preferences.owns_e_bike == true )
+then
+  $f.addScore(Mode.E_BIKE, 20, "You own an e-bike, so using your e-bike is practical.", drools.getRule().getName());
+end
+
+// Distance band scoring (non-overlapping ranges)
 rule "SCORE: Distance < 1000m favors walk"
 salience 60
 when
   $f : Fact( context.distance_to_destination_meters < 1000 )
 then
-  $f.addScore(Mode.WALK, 30, "The destination is nearby, so walking is efficient.", drools.getRule().getName());
+  $f.addScore(Mode.WALK, 35, "The destination is nearby, so walking is efficient.", drools.getRule().getName());
   $f.addScore(Mode.BIKE, 15, "The destination is nearby, biking is convenient.", drools.getRule().getName());
+  $f.addScore(Mode.E_BIKE, 15, "The destination is nearby, e-biking is convenient.", drools.getRule().getName());
 end
 
-rule "SCORE: Distance 1000-3000m favors bike/bikeshare"
+rule "SCORE: Distance 1000-3000m favors bike"
 salience 60
 when
   $f : Fact( context.distance_to_destination_meters >= 1000,
              context.distance_to_destination_meters < 3000 )
 then
   $f.addScore(Mode.BIKE, 25, "The distance is suitable for biking.", drools.getRule().getName());
+  $f.addScore(Mode.E_BIKE, 25, "The distance is suitable for e-biking.", drools.getRule().getName());
   $f.addScore(Mode.BIKESHARE, 20, "The distance is suitable for bike sharing.", drools.getRule().getName());
 end
 
@@ -140,13 +188,25 @@ then
   $f.addScore(Mode.BIKESHARE, 15, "The distance works well with bike sharing.", drools.getRule().getName());
 end
 
-rule "SCORE: Distance > 5000m favors PT/car"
+rule "SCORE: Distance 5000-8000m favors PT/car"
 salience 60
 when
-  $f : Fact( context.distance_to_destination_meters > 5000 )
+  $f : Fact( context.distance_to_destination_meters > 5000,
+             context.distance_to_destination_meters <= 8000 )
 then
   $f.addScore(Mode.PUBLIC_TRANSPORT, 25, "The distance is long, so public transport is efficient.", drools.getRule().getName());
-  $f.addScore(Mode.CAR, 20, "The distance is long, so a car may be practical.", drools.getRule().getName());
+  $f.addScore(Mode.GAS_CAR, 20, "The distance is long, so a gas car may be practical.", drools.getRule().getName());
+  $f.addScore(Mode.ELECTRIC_CAR, 22, "The distance is long, so an electric car may be practical.", drools.getRule().getName());
+end
+
+rule "SCORE: Distance > 8000m favors PT/car only"
+salience 60
+when
+  $f : Fact( context.distance_to_destination_meters > 8000 )
+then
+  $f.addScore(Mode.PUBLIC_TRANSPORT, 30, "Very long distance makes public transport or car most practical.", drools.getRule().getName());
+  $f.addScore(Mode.GAS_CAR, 25, "Very long distance makes a gas car practical.", drools.getRule().getName());
+  $f.addScore(Mode.ELECTRIC_CAR, 27, "Very long distance makes an electric car practical.", drools.getRule().getName());
 end
 
 // Station proximity scoring (guard against -1)
@@ -181,9 +241,15 @@ then
 
   if ("WALK".equalsIgnoreCase(p)) { $f.addScore(Mode.WALK, 12, "You prefer walking.", drools.getRule().getName()); }
   else if ("BIKE".equalsIgnoreCase(p)) { $f.addScore(Mode.BIKE, 12, "You prefer biking.", drools.getRule().getName()); }
+  else if ("E_BIKE".equalsIgnoreCase(p) || "E-BIKE".equalsIgnoreCase(p)) { $f.addScore(Mode.E_BIKE, 12, "You prefer e-biking.", drools.getRule().getName()); }
   else if ("BIKESHARE".equalsIgnoreCase(p)) { $f.addScore(Mode.BIKESHARE, 12, "You prefer bike sharing.", drools.getRule().getName()); }
   else if ("PUBLIC_TRANSPORT".equalsIgnoreCase(p)) { $f.addScore(Mode.PUBLIC_TRANSPORT, 12, "You prefer public transport.", drools.getRule().getName()); }
-  else if ("CAR".equalsIgnoreCase(p)) { $f.addScore(Mode.CAR, 12, "You prefer using a car.", drools.getRule().getName()); }
+  else if ("GAS_CAR".equalsIgnoreCase(p) || "GAS CAR".equalsIgnoreCase(p)) { $f.addScore(Mode.GAS_CAR, 12, "You prefer using a gas car.", drools.getRule().getName()); }
+  else if ("ELECTRIC_CAR".equalsIgnoreCase(p) || "ELECTRIC CAR".equalsIgnoreCase(p)) { $f.addScore(Mode.ELECTRIC_CAR, 12, "You prefer using an electric car.", drools.getRule().getName()); }
+  else if ("CAR".equalsIgnoreCase(p)) { 
+    $f.addScore(Mode.GAS_CAR, 10, "You prefer using a car (gas).", drools.getRule().getName()); 
+    $f.addScore(Mode.ELECTRIC_CAR, 12, "You prefer using a car (electric preferred).", drools.getRule().getName()); 
+  }
 end
 
 
@@ -196,34 +262,8 @@ when
 then
   $f.addScore(Mode.WALK, 10, "Environmental conditions support low-impact transport.", drools.getRule().getName());
   $f.addScore(Mode.BIKE, 10, "Environmental conditions support low-impact transport.", drools.getRule().getName());
+  $f.addScore(Mode.E_BIKE, 9, "Environmental conditions support low-impact transport.", drools.getRule().getName());
   $f.addScore(Mode.PUBLIC_TRANSPORT, 5, "Environmental conditions support public transport.", drools.getRule().getName());
-end
-
-rule "SCORE: Distance 500-1000m boosts walk"
-salience 61
-when
-  $f : Fact( context.distance_to_destination_meters >= 500,
-             context.distance_to_destination_meters < 1000 )
-then
-  $f.addScore(Mode.WALK, 10, "Short distance favors walking.", drools.getRule().getName());
-end
-
-rule "SCORE: Distance 5000-8000m boosts PT more"
-salience 61
-when
-  $f : Fact( context.distance_to_destination_meters >= 5000,
-             context.distance_to_destination_meters <= 8000 )
-then
-  $f.addScore(Mode.PUBLIC_TRANSPORT, 10, "For longer distances, public transport becomes more attractive.", drools.getRule().getName());
-end
-
-rule "SCORE: Very long distance penalizes walk and bike"
-salience 62
-when
-  $f : Fact( context.distance_to_destination_meters > 8000 )
-then
-  $f.addScore(Mode.WALK, -50, "Very long distance makes walking impractical.", drools.getRule().getName());
-  $f.addScore(Mode.BIKE, -20, "Very long distance makes biking less practical.", drools.getRule().getName());
 end
 
 rule "SCORE: Good weather boosts active modes"
@@ -233,6 +273,7 @@ when
 then
   $f.addScore(Mode.WALK, 10, "Good weather supports walking.", drools.getRule().getName());
   $f.addScore(Mode.BIKE, 10, "Good weather supports biking.", drools.getRule().getName());
+  $f.addScore(Mode.E_BIKE, 10, "Good weather supports e-biking.", drools.getRule().getName());
 end
 
 rule "SCORE: Bad weather slightly boosts PT/car"
@@ -241,7 +282,8 @@ when
   $f : Fact( preferences.weather_ok == false )
 then
   $f.addScore(Mode.PUBLIC_TRANSPORT, 10, "Bad weather makes public transport more attractive.", drools.getRule().getName());
-  $f.addScore(Mode.CAR, 5, "Bad weather can make a car more comfortable.", drools.getRule().getName());
+  $f.addScore(Mode.GAS_CAR, 5, "Bad weather can make a gas car more comfortable.", drools.getRule().getName());
+  $f.addScore(Mode.ELECTRIC_CAR, 6, "Bad weather can make an electric car more comfortable.", drools.getRule().getName());
 end
 
 rule "SCORE: Bikeshare station far penalizes bikeshare"

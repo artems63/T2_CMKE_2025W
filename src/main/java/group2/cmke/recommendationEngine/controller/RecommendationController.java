@@ -32,11 +32,15 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import group2.cmke.recommendationEngine.drools.Fact;
 import org.kie.api.runtime.KieContainer;
+import group2.cmke.recommendationEngine.prolog.EnvironmentalScoreService;
+
 
 
 @RestController
 @RequestMapping("/api")
 public class RecommendationController {
+
+  private static final String LOG_PATH = System.getenv("DEBUG_LOG_PATH") != null ? System.getenv("DEBUG_LOG_PATH") : (System.getProperty("user.dir") + java.io.File.separator + ".cursor" + java.io.File.separator + "debug.log");
 
   private double distanceToNextBikeStationMeters;
   private boolean bikesAvailableAtStation;
@@ -54,6 +58,9 @@ public class RecommendationController {
   @Autowired
   private BikeSharingService bikeSharingService;
 
+  @Autowired
+  private EnvironmentalScoreService environmentalScoreService;
+
   // Sends the GET request to the Wiener Linien API
   // with our closest stop as input and with fallback to coordinates.
   private String fetchTripXml(
@@ -62,10 +69,19 @@ public class RecommendationController {
       double destinationLon, double destinationLat
   ) {
     try {
-
+      // #region agent log
+      long findStopStart = System.currentTimeMillis();
+      // #endregion
       HaltestellenService.Stop originStop =
           haltestellenService.findClosestStop(userLat, userLon);
       String originDiva = originStop.diva;
+      // #region agent log
+      try {
+          java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+          fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"D\",\"location\":\"RecommendationController.fetchTripXml:74\",\"message\":\"Find closest stop completed\",\"data\":{\"durationMs\":%d},\"timestamp\":%d}\n", System.currentTimeMillis() - findStopStart, System.currentTimeMillis()));
+          fw.close();
+      } catch (Exception e) {}
+      // #endregion
 
       HttpClient client = HttpClient.newHttpClient();
 
@@ -80,10 +96,20 @@ public class RecommendationController {
           .build()
           .toUri();
 
+      // #region agent log
+      long apiCallStart = System.currentTimeMillis();
+      // #endregion
       HttpResponse<String> divaResponse = client.send(
           HttpRequest.newBuilder(divaUri).GET().build(),
           HttpResponse.BodyHandlers.ofString()
       );
+      // #region agent log
+      try {
+          java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+          fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"A\",\"location\":\"RecommendationController.fetchTripXml:90\",\"message\":\"Wiener Linien DIVA API call completed\",\"data\":{\"durationMs\":%d,\"statusCode\":%d,\"responseLength\":%d},\"timestamp\":%d}\n", System.currentTimeMillis() - apiCallStart, divaResponse.statusCode(), divaResponse.body().length(), System.currentTimeMillis()));
+          fw.close();
+      } catch (Exception e) {}
+      // #endregion
 
       String divaBody = divaResponse.body();
 
@@ -105,14 +131,31 @@ public class RecommendationController {
           .build()
           .toUri();
 
+      // #region agent log
+      apiCallStart = System.currentTimeMillis();
+      // #endregion
       HttpResponse<String> coordResponse = client.send(
           HttpRequest.newBuilder(coordUri).GET().build(),
           HttpResponse.BodyHandlers.ofString()
       );
+      // #region agent log
+      try {
+          java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+          fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"A\",\"location\":\"RecommendationController.fetchTripXml:115\",\"message\":\"Wiener Linien coord API call completed (fallback)\",\"data\":{\"durationMs\":%d,\"statusCode\":%d,\"responseLength\":%d},\"timestamp\":%d}\n", System.currentTimeMillis() - apiCallStart, coordResponse.statusCode(), coordResponse.body().length(), System.currentTimeMillis()));
+          fw.close();
+      } catch (Exception e) {}
+      // #endregion
 
       return coordResponse.body();
 
     } catch (Exception e) {
+      // #region agent log
+      try {
+          java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+          fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"A\",\"location\":\"RecommendationController.fetchTripXml:122\",\"message\":\"API call exception\",\"data\":{\"exception\":\"%s\"},\"timestamp\":%d}\n", e.getClass().getName() + ": " + e.getMessage(), System.currentTimeMillis()));
+          fw.close();
+      } catch (Exception ex) {}
+      // #endregion
       // If the API is down or we have no internet connection we proceed with no public transport.
       return "<itdRequest></itdRequest>";
     }
@@ -130,6 +173,20 @@ public class RecommendationController {
 
   private RecommendationResponseDTO runDrools(ContextDTO context, UserPreferencesDTO preferences) {
     Fact fact = new Fact(context, preferences);
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"B\",\"location\":\"RecommendationController.runDrools:174\",\"message\":\"Before Drools - ownership values\",\"data\":{\"owns_non_electric_transport\":%s,\"owns_electric_micro_mobility\":%s,\"bikeDisqualifiedBefore\":%s,\"eBikeDisqualifiedBefore\":%s},\"timestamp\":%d}\n", preferences.owns_non_electric_transport, preferences.owns_electric_micro_mobility, fact.isDisqualified(Fact.Mode.BIKE), fact.isDisqualified(Fact.Mode.E_BIKE), System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"C\",\"location\":\"RecommendationController.runDrools:137\",\"message\":\"Before Drools - confidence score\",\"data\":{\"confidenceScore\":%f},\"timestamp\":%d}\n", fact.getConfidenceScore(), System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
 
     var session = kieContainer.newKieSession();
     try {
@@ -137,22 +194,71 @@ public class RecommendationController {
 
       int fired = session.fireAllRules();
       System.out.println("Drools fired rules: " + fired);
+      // #region agent log
+      try {
+          java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+          fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"B\",\"location\":\"RecommendationController.runDrools:188\",\"message\":\"After Drools - disqualification status\",\"data\":{\"bikeDisqualified\":%s,\"eBikeDisqualified\":%s,\"bikeScore\":%d,\"eBikeScore\":%d,\"recommended\":\"%s\"},\"timestamp\":%d}\n", fact.isDisqualified(Fact.Mode.BIKE), fact.isDisqualified(Fact.Mode.E_BIKE), fact.getScore(Fact.Mode.BIKE), fact.getScore(Fact.Mode.E_BIKE), (fact.getRecommended() != null ? fact.getRecommended().name() : "null"), System.currentTimeMillis()));
+          fw.close();
+      } catch (Exception e) {}
+      // #endregion
+      // #region agent log
+      try {
+          java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+          fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"C\",\"location\":\"RecommendationController.runDrools:144\",\"message\":\"After Drools fireAllRules\",\"data\":{\"fired\":%d,\"recommended\":\"%s\",\"confidenceScore\":%f},\"timestamp\":%d}\n", fired, (fact.getRecommended() != null ? fact.getRecommended().name() : "null"), fact.getConfidenceScore(), System.currentTimeMillis()));
+          fw.close();
+      } catch (Exception e) {}
+      // #endregion
 
     } finally {
       session.dispose();
     }
 
     RecommendationResponseDTO resp = new RecommendationResponseDTO();
-    resp.setEnvironmental_factor(context.getEnvironmental_factor());
     resp.setConfidence_score(fact.getConfidenceScore());
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"E\",\"location\":\"RecommendationController.runDrools:166\",\"message\":\"Before setting recommended_transport\",\"data\":{\"factRecommendedIsNull\":%s,\"factRecommended\":\"%s\"},\"timestamp\":%d}\n", (fact.getRecommended() == null), (fact.getRecommended() != null ? fact.getRecommended().name() : "null"), System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
 
     if (fact.getRecommended() != null) {
       resp.setRecommended_transport(fact.getRecommended().name());
+      // Calculate mode-specific environmental factor
+      double modeEnvFactor = environmentalScoreService.modeEnvironmentalFactor(
+          fact.getRecommended().name(),
+          context.distance_to_destination_meters,
+          preferences.weather_ok
+      );
+      resp.setEnvironmental_factor(modeEnvFactor);
+      // #region agent log
+      try {
+          java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+          fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"E\",\"location\":\"RecommendationController.runDrools:178\",\"message\":\"Set recommended_transport to mode name\",\"data\":{\"recommended_transport\":\"%s\",\"mode_env_factor\":%f},\"timestamp\":%d}\n", fact.getRecommended().name(), modeEnvFactor, System.currentTimeMillis()));
+          fw.close();
+      } catch (Exception e) {}
+      // #endregion
     } else {
       resp.setRecommended_transport("UNKNOWN");
+      resp.setEnvironmental_factor(context.getEnvironmental_factor());
+      // #region agent log
+      try {
+          java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+          fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"E\",\"location\":\"RecommendationController.runDrools:180\",\"message\":\"Set recommended_transport to UNKNOWN\",\"data\":{},\"timestamp\":%d}\n", System.currentTimeMillis()));
+          fw.close();
+      } catch (Exception e) {}
+      // #endregion
     }
 
     resp.setReason(fact.getReasons());
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"D\",\"location\":\"RecommendationController.runDrools:184\",\"message\":\"Final response DTO values\",\"data\":{\"environmental_factor\":%f,\"confidence_score\":%f,\"recommended_transport\":\"%s\"},\"timestamp\":%d}\n", resp.getEnvironmental_factor(), resp.getConfidence_score(), (resp.getRecommended_transport() != null ? resp.getRecommended_transport() : "null"), System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
     return resp;
   }
 
@@ -169,7 +275,18 @@ public class RecommendationController {
         userPreferences.destination_lat
     );
 
-    return parseTransportModesFromXml(xml);
+    // #region agent log
+    long parseStart = System.currentTimeMillis();
+    // #endregion
+    List<TransportMode> result = parseTransportModesFromXml(xml);
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"E\",\"location\":\"RecommendationController.fetchAndParseTransportModes:221\",\"message\":\"Parse XML completed\",\"data\":{\"durationMs\":%d,\"xmlLength\":%d,\"resultCount\":%d},\"timestamp\":%d}\n", System.currentTimeMillis() - parseStart, xml.length(), result.size(), System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
+    return result;
   }
 
   private static double clamp01(double x) {
@@ -180,63 +297,6 @@ public class RecommendationController {
     return Math.round(x * 100.0) / 100.0;
   }
 
-  private double computeEnvironmentalFactor(ContextDTO ctx, UserPreferencesDTO pref) {
-    // 1) Walk support: best for short distances, requires good weather
-    double walkSupport = 0.0;
-    if (pref.weather_ok) {
-      // 0m -> 1.0, 2000m -> 0.0
-      walkSupport = clamp01(1.0 - (ctx.distance_to_destination_meters / 2000.0));
-    }
-
-    // 2) Bike sharing support: needs good weather + bikes + not too far from station
-    double bikeShareSupport = 0.0;
-    if (pref.weather_ok
-            && ctx.bikesAvailableAtStation
-            && ctx.distance_to_next_bikesharing_station_meters >= 0) {
-      // 0m -> 1.0, 800m -> 0.0
-      bikeShareSupport = clamp01(1.0 - (ctx.distance_to_next_bikesharing_station_meters / 800.0));
-    }
-
-    // 3) Public transport support: requires route present + station distance
-    double ptSupport = 0.0;
-    boolean ptRouteExists = (ctx.public_transport_best_option != null && !ctx.public_transport_best_option.isEmpty());
-    boolean ptAllowed = pref.has_public_transport_ticket || pref.is_open_to_buy_ticket;
-
-    if (ptRouteExists && ptAllowed && ctx.distance_to_next_public_transport_station_meters >= 0) {
-      // 0m -> 1.0, 1200m -> 0.0
-      double nearStop = clamp01(1.0 - (ctx.distance_to_next_public_transport_station_meters / 1200.0));
-      // PT is "eco-friendly", but not as perfect as walking -> cap it
-      ptSupport = 0.75 * nearStop;
-    } else if (ptRouteExists && !ptAllowed) {
-      // PT exists but blocked by ticket constraint -> small support
-      ptSupport = 0.05;
-    }
-
-    // 4) Car fallback: if only car is feasible, environmental factor should be low
-    // We don't know "feasible" here perfectly, so treat ownership as fallback signal.
-    double carFallback = 0.0;
-    if (pref.owns_electric_car) carFallback = 0.35;
-    else if (pref.owns_gas_car) carFallback = 0.15;
-
-    // Combine: emphasize low-impact supports, reduce if only car is plausible.
-    // We use a weighted max-like mixture: supports dominate; car fallback pulls down.
-    double ecoSupport = 0.45 * walkSupport
-            + 0.30 * bikeShareSupport
-            + 0.25 * ptSupport;
-
-    // If ecoSupport is very low, allow car fallback to be the only remaining "support",
-    // but keep overall factor low.
-    double factor = Math.max(ecoSupport, carFallback);
-
-    // Sustainability preference is not a magic boost; it should slightly increase sensitivity
-    // to eco options rather than add a constant.
-    if (pref.environmentally_sustainable) {
-      factor = clamp01(factor * 1.05);
-    }
-
-    return round2(factor);
-  }
-
   private ContextDTO buildBaseContext(
       double distanceMeters,
       List<TransportMode> transportModes, UserPreferencesDTO userPreferences
@@ -245,6 +305,20 @@ public class RecommendationController {
     context.distance_to_destination_meters = distanceMeters;
     context.walking_ok = distanceMeters <= 2000;
     context.public_transport_best_option = transportModes;
+
+    context.environmental_factor =
+            environmentalScoreService.environmentalFactor(
+                    distanceMeters,
+                    userPreferences.weather_ok,
+                    userPreferences.environmentally_sustainable
+            );
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"B\",\"location\":\"RecommendationController.buildBaseContext:203\",\"message\":\"Context environmental_factor set\",\"data\":{\"environmental_factor\":%f},\"timestamp\":%d}\n", context.environmental_factor, System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
 
     return context;
   }
@@ -286,12 +360,21 @@ public class RecommendationController {
       UserPreferencesDTO userPreferences,
       ContextDTO context
   ) {
-
+    // #region agent log
+    long findStationStart = System.currentTimeMillis();
+    // #endregion
     BikeSharingService.BikeStation bikeStation =
         bikeSharingService.findClosestStationWithBikes(
             userPreferences.lat,
             userPreferences.lon
         );
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"D\",\"location\":\"RecommendationController.enrichContextWithBikeSharing:296\",\"message\":\"Find closest bike station completed\",\"data\":{\"durationMs\":%d,\"stationFound\":%s},\"timestamp\":%d}\n", System.currentTimeMillis() - findStationStart, (bikeStation != null), System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
 
     if (bikeStation != null) {
       distanceToNextBikeStationMeters =
@@ -349,25 +432,86 @@ public class RecommendationController {
   // Also notifies the user with the recommendation from the drools engine.
   @PostMapping("/recommend")
   public RecommendationResponseDTO recommend(@RequestBody UserPreferencesDTO userPreferences) throws Exception {
+    // #region agent log
+    long requestStartTime = System.currentTimeMillis();
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"ALL\",\"location\":\"RecommendationController.recommend:357\",\"message\":\"Request started\",\"data\":{\"lat\":%f,\"lon\":%f},\"timestamp\":%d}\n", userPreferences.lat, userPreferences.lon, requestStartTime));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"A\",\"location\":\"RecommendationController.recommend:420\",\"message\":\"User preferences received\",\"data\":{\"owns_non_electric_transport\":%s,\"owns_electric_micro_mobility\":%s,\"owns_e_bike\":%s,\"owns_gas_car\":%s,\"owns_electric_car\":%s},\"timestamp\":%d}\n", userPreferences.owns_non_electric_transport, userPreferences.owns_electric_micro_mobility, userPreferences.owns_e_bike, userPreferences.owns_gas_car, userPreferences.owns_electric_car, System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
 
+    long stepStartTime = System.currentTimeMillis();
     double distanceMeters = calculateDistanceToDestination(userPreferences);
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"ALL\",\"location\":\"RecommendationController.recommend:360\",\"message\":\"Distance calculation completed\",\"data\":{\"distanceMeters\":%f,\"durationMs\":%d},\"timestamp\":%d}\n", distanceMeters, System.currentTimeMillis() - stepStartTime, System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
 
+    stepStartTime = System.currentTimeMillis();
     List<TransportMode> transportModes =
         fetchAndParseTransportModes(userPreferences);
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"A\",\"location\":\"RecommendationController.recommend:362\",\"message\":\"Fetch and parse transport modes completed\",\"data\":{\"transportModesCount\":%d,\"durationMs\":%d},\"timestamp\":%d}\n", transportModes.size(), System.currentTimeMillis() - stepStartTime, System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
 
+    stepStartTime = System.currentTimeMillis();
     ContextDTO context =
         buildBaseContext(distanceMeters, transportModes, userPreferences);
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"B\",\"location\":\"RecommendationController.recommend:365\",\"message\":\"Build base context completed\",\"data\":{\"durationMs\":%d},\"timestamp\":%d}\n", System.currentTimeMillis() - stepStartTime, System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
 
+    stepStartTime = System.currentTimeMillis();
     HaltestellenService.Stop originStop =
         enrichContextWithPublicTransportDistances(userPreferences, context);
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"D\",\"location\":\"RecommendationController.recommend:368\",\"message\":\"Enrich with public transport distances completed\",\"data\":{\"durationMs\":%d},\"timestamp\":%d}\n", System.currentTimeMillis() - stepStartTime, System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
 
+    stepStartTime = System.currentTimeMillis();
     BikeSharingService.BikeStation bikeStation =
         enrichContextWithBikeSharing(userPreferences, context);
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"D\",\"location\":\"RecommendationController.recommend:371\",\"message\":\"Enrich with bike sharing completed\",\"data\":{\"durationMs\":%d},\"timestamp\":%d}\n", System.currentTimeMillis() - stepStartTime, System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
 
-    context.environmental_factor = computeEnvironmentalFactor(context, userPreferences);
-
+    stepStartTime = System.currentTimeMillis();
     RecommendationResponseDTO response =
         runDrools(context, userPreferences);
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"C\",\"location\":\"RecommendationController.recommend:374\",\"message\":\"Run Drools completed\",\"data\":{\"durationMs\":%d},\"timestamp\":%d}\n", System.currentTimeMillis() - stepStartTime, System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
 
     logDebugInfo(
         userPreferences,
@@ -377,6 +521,14 @@ public class RecommendationController {
         bikeStation,
         distanceMeters
     );
+
+    // #region agent log
+    try {
+        java.io.FileWriter fw = new java.io.FileWriter(LOG_PATH, true);
+        fw.write(String.format("{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"ALL\",\"location\":\"RecommendationController.recommend:385\",\"message\":\"Request completed\",\"data\":{\"totalDurationMs\":%d},\"timestamp\":%d}\n", System.currentTimeMillis() - requestStartTime, System.currentTimeMillis()));
+        fw.close();
+    } catch (Exception e) {}
+    // #endregion
 
     return response;
   }
