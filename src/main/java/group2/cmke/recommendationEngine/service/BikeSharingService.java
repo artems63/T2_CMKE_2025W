@@ -71,13 +71,13 @@ public class BikeSharingService {
   // Helper method to calculate the distance between two sets of coordinates.
   private double haversine(double lat1, double lon1, double lat2, double lon2) {
     final double R = 6371000;
-    double φ1 = Math.toRadians(lat1);
-    double φ2 = Math.toRadians(lat2);
-    double Δφ = Math.toRadians(lat2 - lat1);
-    double Δλ = Math.toRadians(lon2 - lon1);
-    double a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-        Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    double f1 = Math.toRadians(lat1);
+    double f2 = Math.toRadians(lat2);
+    double Df = Math.toRadians(lat2 - lat1);
+    double Dl = Math.toRadians(lon2 - lon1);
+    double a = Math.sin(Df / 2) * Math.sin(Df / 2) +
+        Math.cos(f1) * Math.cos(f2) *
+            Math.sin(Dl / 2) * Math.sin(Dl / 2);
     double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }

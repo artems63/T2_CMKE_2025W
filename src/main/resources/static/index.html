@@ -104,6 +104,57 @@
         @media (max-width: 600px) {
             .container { margin: 10px; padding: 15px; }
         }
+
+        .result-card{
+          margin-top:16px;
+          padding:16px;
+          border:1px solid #cfe7cf;
+          border-radius:12px;
+          background:#f6fff6;
+        }
+
+        .result-card h2{
+          margin:0 0 12px 0;
+          font-size:20px;
+        }
+
+        .metric{ margin:10px 0 14px 0; }
+
+        .metric-label{
+          display:flex;
+          justify-content:space-between;
+          font-size:14px;
+          margin-bottom:6px;
+        }
+
+        .bar{
+          height:10px;
+          border-radius:999px;
+          background:#dcefdc;
+          overflow:hidden;
+        }
+
+        .bar-fill{
+          height:100%;
+          width:0%;
+          background:#2e7d32;
+          border-radius:999px;
+        }
+
+        #reasonsList{
+          margin:8px 0 0 18px;
+        }
+
+        #reasonsList li{ margin:6px 0; }
+
+        .debug{
+          margin-top:10px;
+          opacity:0.9;
+        }
+        .debug pre{
+          white-space:pre-wrap;
+        }
+
     </style>
 </head>
 <body>
@@ -163,7 +214,34 @@
 
     <button class="submit-btn" id="submitBtn" onclick="submitPreferences()">Submit Preferences</button>
 
-    <div class="result" id="result">Recommendation will appear here!</div>
+    <div id="resultCard" class="result-card" style="display:none;">
+        <h2 id="resultTitle"></h2>
+
+        <div class="metric">
+            <div class="metric-label">
+                <span>Confidence</span>
+                <span id="confidenceText"></span>
+            </div>
+            <div class="bar"><div id="confidenceBar" class="bar-fill"></div></div>
+        </div>
+
+        <div class="metric">
+            <div class="metric-label">
+                <span>Environmental factor</span>
+                <span id="envText"></span>
+            </div>
+            <div class="bar"><div id="envBar" class="bar-fill"></div></div>
+        </div>
+
+        <h3>Why this recommendation</h3>
+        <ul id="reasonsList"></ul>
+    </div>
+
+    <details class="debug">
+        <summary>Show raw JSON</summary>
+        <pre id="rawJson" class="result">No result yet.</pre>
+    </details>
+
 </div>
 <div id="spinner"></div>
 
@@ -211,6 +289,52 @@
         });
     });
 
+    function prettyLabel(mode) {
+      const m = (mode || "").toString();
+      const map = {
+        PUBLIC_TRANSPORT: "Public transport",
+        BIKE_SHARING: "Bike sharing",
+        WALKING: "Walking",
+        CAR: "Car"
+      };
+      return map[m] || m.replaceAll("_"," ").toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase());
+    }
+
+
+    function pct(x) {
+      const n = Number(x);
+      if (!Number.isFinite(n)) return 0;
+      const clamped = Math.max(0, Math.min(1, n));
+      return Math.round(clamped * 100);
+    }
+
+    function renderResult(data) {
+      const card = document.getElementById('resultCard');
+      const title = document.getElementById('resultTitle');
+      const reasonsList = document.getElementById('reasonsList');
+
+      const conf = pct(data.confidence_score);
+      const env = pct(data.environmental_factor);
+
+      title.textContent = `Recommended: ${prettyLabel(data.recommended_transport)}`;
+
+      document.getElementById('confidenceText').textContent = `${conf}%`;
+      document.getElementById('confidenceBar').style.width = `${conf}%`;
+
+      document.getElementById('envText').textContent = `${env}%`;
+      document.getElementById('envBar').style.width = `${env}%`;
+
+      reasonsList.innerHTML = '';
+      (data.reason || []).forEach(r => {
+        const li = document.createElement('li');
+        li.textContent = r;
+        reasonsList.appendChild(li);
+      });
+
+      document.getElementById('rawJson').textContent = JSON.stringify(data, null, 2);
+      card.style.display = 'block';
+    }
+
     async function submitPreferences() {
         const spinner = document.getElementById('spinner');
         spinner.style.display = 'block';
@@ -231,12 +355,63 @@
         const wants_public_transport = preferredTransport.includes("Public Transport");
         const wants_bike_sharing = preferredTransport.includes("Bike") || preferredTransport.includes("E-Bike");
 
-        const preferred_transport_mode = preferredTransport.length > 0 ? preferredTransport[0] : null;
+        preferred_transport_mode = preferredTransport.length > 0
+        ? preferredTransport[0].toUpperCase().replaceAll(" ", "_").replaceAll("-", "_")
+        : null;
 
-        // TO DELETE LATER - For now I use fixed coordinates inside vienna since i am not in town at
-        // the time of implementation.
-        const lat = 48.1988288;
-        const lon = 16.3064912;
+
+
+
+
+
+
+
+
+
+
+
+
+
+        // should do the trick - Schottentor as starting point
+
+        let lat = 48.1988288;
+        let lon = 16.3064912;
+
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            pos => {
+              lat = pos.coords.latitude;
+              lon = pos.coords.longitude;
+            },
+            () => console.log("Geolocation denied, using default.")
+          );
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         const select = document.getElementById('destination');
         const destinationDiva = select.value;
@@ -273,10 +448,12 @@
                 body: JSON.stringify(data)
             });
             const json = await res.json();
-            document.getElementById('result').textContent = JSON.stringify(json, null, 2);
+            renderResult(json);
         } catch (err) {
             console.error(err);
-            document.getElementById('result').textContent = "Error contacting server";
+            document.getElementById('rawJson').textContent = "Error contacting server";
+            document.getElementById('resultCard').style.display = "none";
+
         } finally {
             spinner.style.display = 'none';
         }

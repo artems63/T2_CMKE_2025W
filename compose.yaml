@@ -1,8 +1,7 @@
-version: "3.9"
-
 services:
   recommendation-engine:
     build: .
     container_name: recommendation-engine
     ports:
       - "8080:8080"
+

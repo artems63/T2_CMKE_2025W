@@ -93,6 +93,14 @@ public class UserPreferencesDTO {
     this.wants_public_transport = wants_public_transport;
   }
 
+  public boolean isWeather_ok() {
+    return weather_ok;
+  }
+
+  public void setWeather_ok(boolean weather_ok) {
+    this.weather_ok = weather_ok;
+  }
+
   public String getPreferred_transport_mode() {
     return preferred_transport_mode;
   }
@@ -117,30 +125,58 @@ public class UserPreferencesDTO {
     this.lon = lon;
   }
 
-  public boolean weather_ok() {
-    return weather_ok;
+  public String getDestination_diva() {
+    return destination_diva;
   }
 
-  public void setWeather_ok(boolean rain) {
-    this.weather_ok = rain;
+  public void setDestination_diva(String destination_diva) {
+    this.destination_diva = destination_diva;
+  }
+
+  public String getDestination_text() {
+    return destination_text;
+  }
+
+  public void setDestination_text(String destination_text) {
+    this.destination_text = destination_text;
+  }
+
+  public double getDestination_lat() {
+    return destination_lat;
+  }
+
+  public void setDestination_lat(double destination_lat) {
+    this.destination_lat = destination_lat;
+  }
+
+  public double getDestination_lon() {
+    return destination_lon;
+  }
+
+  public void setDestination_lon(double destination_lon) {
+    this.destination_lon = destination_lon;
   }
 
   @Override
   public String toString() {
     return "UserPreferencesDTO{" +
-        "environmentally_sustainable=" + environmentally_sustainable +
-        ", owns_non_electric_transport=" + owns_non_electric_transport +
-        ", owns_electric_micro_mobility=" + owns_electric_micro_mobility +
-        ", owns_gas_car=" + owns_gas_car +
-        ", weather_ok=" + weather_ok +
-        ", owns_electric_car=" + owns_electric_car +
-        ", has_public_transport_ticket=" + has_public_transport_ticket +
-        ", is_open_to_buy_ticket=" + is_open_to_buy_ticket +
-        ", wants_bike_sharing=" + wants_bike_sharing +
-        ", wants_public_transport=" + wants_public_transport +
-        ", preferred_transport_mode='" + preferred_transport_mode + '\'' +
-        ", lat=" + lat +
-        ", lon=" + lon +
-        '}';
+            "environmentally_sustainable=" + environmentally_sustainable +
+            ", owns_non_electric_transport=" + owns_non_electric_transport +
+            ", owns_electric_micro_mobility=" + owns_electric_micro_mobility +
+            ", owns_gas_car=" + owns_gas_car +
+            ", owns_electric_car=" + owns_electric_car +
+            ", has_public_transport_ticket=" + has_public_transport_ticket +
+            ", is_open_to_buy_ticket=" + is_open_to_buy_ticket +
+            ", wants_bike_sharing=" + wants_bike_sharing +
+            ", wants_public_transport=" + wants_public_transport +
+            ", weather_ok=" + weather_ok +
+            ", preferred_transport_mode='" + preferred_transport_mode + '\'' +
+            ", lat=" + lat +
+            ", lon=" + lon +
+            ", destination_diva='" + destination_diva + '\'' +
+            ", destination_text='" + destination_text + '\'' +
+            ", destination_lat=" + destination_lat +
+            ", destination_lon=" + destination_lon +
+            '}';
   }
 }

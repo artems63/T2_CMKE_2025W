@@ -1,5 +1,5 @@
 <kmodule xmlns="http://www.drools.org/xsd/kmodule">
-  <kbase name="rules" packages="group2.cmke.recommendationEngine.drools.rules">
-    <ksession name="ksession-rules"/>
+  <kbase name="rules" packages="rules">
+    <ksession name="ksession"/>
   </kbase>
 </kmodule>

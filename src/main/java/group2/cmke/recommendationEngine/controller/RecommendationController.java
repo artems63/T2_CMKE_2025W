@@ -30,6 +30,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
+import group2.cmke.recommendationEngine.drools.Fact;
+import org.kie.api.runtime.KieContainer;
+
 
 @RestController
 @RequestMapping("/api")
@@ -44,6 +47,9 @@ public class RecommendationController {
 
   @Autowired
   private HaltestellenService haltestellenService;
+
+  @Autowired
+  private KieContainer kieContainer;
 
   @Autowired
   private BikeSharingService bikeSharingService;
@@ -122,6 +128,34 @@ public class RecommendationController {
     );
   }
 
+  private RecommendationResponseDTO runDrools(ContextDTO context, UserPreferencesDTO preferences) {
+    Fact fact = new Fact(context, preferences);
+
+    var session = kieContainer.newKieSession();
+    try {
+      session.insert(fact);
+
+      int fired = session.fireAllRules();
+      System.out.println("Drools fired rules: " + fired);
+
+    } finally {
+      session.dispose();
+    }
+
+    RecommendationResponseDTO resp = new RecommendationResponseDTO();
+    resp.setEnvironmental_factor(context.getEnvironmental_factor());
+    resp.setConfidence_score(fact.getConfidenceScore());
+
+    if (fact.getRecommended() != null) {
+      resp.setRecommended_transport(fact.getRecommended().name());
+    } else {
+      resp.setRecommended_transport("UNKNOWN");
+    }
+
+    resp.setReason(fact.getReasons());
+    return resp;
+  }
+
   // Calls the fetch method for our api call and then the response is parsed into a list of objects.
   private List<TransportMode> fetchAndParseTransportModes(
       UserPreferencesDTO userPreferences
@@ -138,6 +172,71 @@ public class RecommendationController {
     return parseTransportModesFromXml(xml);
   }
 
+  private static double clamp01(double x) {
+    return Math.max(0.0, Math.min(1.0, x));
+  }
+
+  private static double round2(double x) {
+    return Math.round(x * 100.0) / 100.0;
+  }
+
+  private double computeEnvironmentalFactor(ContextDTO ctx, UserPreferencesDTO pref) {
+    // 1) Walk support: best for short distances, requires good weather
+    double walkSupport = 0.0;
+    if (pref.weather_ok) {
+      // 0m -> 1.0, 2000m -> 0.0
+      walkSupport = clamp01(1.0 - (ctx.distance_to_destination_meters / 2000.0));
+    }
+
+    // 2) Bike sharing support: needs good weather + bikes + not too far from station
+    double bikeShareSupport = 0.0;
+    if (pref.weather_ok
+            && ctx.bikesAvailableAtStation
+            && ctx.distance_to_next_bikesharing_station_meters >= 0) {
+      // 0m -> 1.0, 800m -> 0.0
+      bikeShareSupport = clamp01(1.0 - (ctx.distance_to_next_bikesharing_station_meters / 800.0));
+    }
+
+    // 3) Public transport support: requires route present + station distance
+    double ptSupport = 0.0;
+    boolean ptRouteExists = (ctx.public_transport_best_option != null && !ctx.public_transport_best_option.isEmpty());
+    boolean ptAllowed = pref.has_public_transport_ticket || pref.is_open_to_buy_ticket;
+
+    if (ptRouteExists && ptAllowed && ctx.distance_to_next_public_transport_station_meters >= 0) {
+      // 0m -> 1.0, 1200m -> 0.0
+      double nearStop = clamp01(1.0 - (ctx.distance_to_next_public_transport_station_meters / 1200.0));
+      // PT is "eco-friendly", but not as perfect as walking -> cap it
+      ptSupport = 0.75 * nearStop;
+    } else if (ptRouteExists && !ptAllowed) {
+      // PT exists but blocked by ticket constraint -> small support
+      ptSupport = 0.05;
+    }
+
+    // 4) Car fallback: if only car is feasible, environmental factor should be low
+    // We don't know "feasible" here perfectly, so treat ownership as fallback signal.
+    double carFallback = 0.0;
+    if (pref.owns_electric_car) carFallback = 0.35;
+    else if (pref.owns_gas_car) carFallback = 0.15;
+
+    // Combine: emphasize low-impact supports, reduce if only car is plausible.
+    // We use a weighted max-like mixture: supports dominate; car fallback pulls down.
+    double ecoSupport = 0.45 * walkSupport
+            + 0.30 * bikeShareSupport
+            + 0.25 * ptSupport;
+
+    // If ecoSupport is very low, allow car fallback to be the only remaining "support",
+    // but keep overall factor low.
+    double factor = Math.max(ecoSupport, carFallback);
+
+    // Sustainability preference is not a magic boost; it should slightly increase sensitivity
+    // to eco options rather than add a constant.
+    if (pref.environmentally_sustainable) {
+      factor = clamp01(factor * 1.05);
+    }
+
+    return round2(factor);
+  }
+
   private ContextDTO buildBaseContext(
       double distanceMeters,
       List<TransportMode> transportModes, UserPreferencesDTO userPreferences
@@ -146,10 +245,6 @@ public class RecommendationController {
     context.distance_to_destination_meters = distanceMeters;
     context.walking_ok = distanceMeters <= 2000;
     context.public_transport_best_option = transportModes;
-
-    // Here we call the environmental factor calculation based on contextDTO and userPreferencesDTO.
-    // It is a set value for now till the implementation is finished.
-    context.environmental_factor = 0.82;
 
     return context;
   }
@@ -269,8 +364,10 @@ public class RecommendationController {
     BikeSharingService.BikeStation bikeStation =
         enrichContextWithBikeSharing(userPreferences, context);
 
+    context.environmental_factor = computeEnvironmentalFactor(context, userPreferences);
+
     RecommendationResponseDTO response =
-        runDrools(userPreferences, context);
+        runDrools(context, userPreferences);
 
     logDebugInfo(
         userPreferences,
@@ -284,23 +381,16 @@ public class RecommendationController {
     return response;
   }
 
-  // Here we call our Drools Engine based on the UserPreferencesDTO and ContextDTO
-  private RecommendationResponseDTO runDrools(UserPreferencesDTO user, ContextDTO context) {
-    RecommendationResponseDTO response = new RecommendationResponseDTO();
-
-    return response;
-  }
-
   // Helper method to calculate the distance in meters between to sets of coordinates
   private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
     final double R = 6371000; // Radius der Erde in Metern
-    double φ1 = Math.toRadians(lat1);
-    double φ2 = Math.toRadians(lat2);
-    double Δφ = Math.toRadians(lat2 - lat1);
-    double Δλ = Math.toRadians(lon2 - lon1);
-    double a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-        Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    double f1 = Math.toRadians(lat1);
+    double f2 = Math.toRadians(lat2);
+    double Df = Math.toRadians(lat2 - lat1);
+    double Dl = Math.toRadians(lon2 - lon1);
+    double a = Math.sin(Df / 2) * Math.sin(Df / 2) +
+        Math.cos(f1) * Math.cos(f2) *
+            Math.sin(Dl / 2) * Math.sin(Dl / 2);
     double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return R * c;

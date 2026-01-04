@@ -18,10 +18,6 @@ public class ContextDTO {
     return distance_to_destination_meters;
   }
 
-  public void setDistance_to_destination_meters(int distance_to_destination_meters) {
-    this.distance_to_destination_meters = distance_to_destination_meters;
-  }
-
   public boolean isWalking_ok() {
     return walking_ok;
   }
