@@ -4,4 +4,10 @@ services:
     container_name: recommendation-engine
     ports:
       - "8080:8080"
+    volumes:
+      - decision-data:/app/data
+
+volumes:
+  decision-data:
+
 

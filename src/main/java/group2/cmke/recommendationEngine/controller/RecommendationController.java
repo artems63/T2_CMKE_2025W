@@ -6,11 +6,15 @@ import group2.cmke.recommendationEngine.dto.UserPreferencesDTO;
 import group2.cmke.recommendationEngine.model.TransportMode;
 import group2.cmke.recommendationEngine.service.BikeSharingService;
 import group2.cmke.recommendationEngine.service.HaltestellenService;
+import java.io.IOException;
 import java.io.StringReader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,6 +25,12 @@ import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,12 +42,18 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import group2.cmke.recommendationEngine.drools.Fact;
 import org.kie.api.runtime.KieContainer;
-
+import tools.jackson.databind.ObjectMapper;
 
 @RestController
 @RequestMapping("/api")
 public class RecommendationController {
 
+  private static final ObjectMapper objectMapper = new ObjectMapper();
+  private static final Path DECISION_FILE =
+      Path.of("data/decisionoverview.txt");
+
+  @Value("${decision.file:data/decisionoverview.txt}")
+  private String decisionFilePath;
   private double distanceToNextBikeStationMeters;
   private boolean bikesAvailableAtStation;
 
@@ -378,12 +394,14 @@ public class RecommendationController {
         distanceMeters
     );
 
+    appendDecisionToFile(response);
+
     return response;
   }
 
   // Helper method to calculate the distance in meters between to sets of coordinates
   private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    final double R = 6371000; // Radius der Erde in Metern
+    final double R = 6371000; // radius in meter (erde).
     double f1 = Math.toRadians(lat1);
     double f2 = Math.toRadians(lat2);
     double Df = Math.toRadians(lat2 - lat1);
@@ -464,5 +482,44 @@ public class RecommendationController {
     }
 
     return removeDuplicates(result);
+  }
+
+  private void appendDecisionToFile(RecommendationResponseDTO response) {
+    try {
+      Path file = decisionFile();
+      Files.createDirectories(file.getParent());
+
+      String jsonLine = objectMapper.writeValueAsString(response);
+
+      Files.writeString(
+          file,
+          jsonLine + System.lineSeparator(),
+          StandardOpenOption.CREATE,
+          StandardOpenOption.APPEND
+      );
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
+
+  @GetMapping("/decisionoverview")
+  public ResponseEntity<Resource> getDecisionOverview() throws IOException {
+
+    Path file = decisionFile();
+
+    if (!Files.exists(file)) {
+      return ResponseEntity.noContent().build();
+    }
+
+    Resource resource = new UrlResource(file.toUri());
+
+    return ResponseEntity.ok()
+        .header(HttpHeaders.CONTENT_TYPE, "text/plain")
+        .body(resource);
+  }
+
+  // Docker safe version for our decision overview file inside the data folder.
+  private Path decisionFile() {
+    return Path.of(decisionFilePath);
   }
 }
