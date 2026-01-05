@@ -31,3 +31,10 @@ environmental_factor(DistanceMeters, WeatherOk, WantsSustainable, Factor) :-
 clamp01(X, 0.0) :- X < 0.0, !.
 clamp01(X, 1.0) :- X > 1.0, !.
 clamp01(X, X).
+
+mode_environmental_factor(Mode, Distance, WeatherOk, Factor) :-
+    base_score(Mode, Base),
+    distance_penalty(Distance, DP),
+    weather_penalty(WeatherOk, WP),
+    Raw is Base - DP - WP,
+    clamp01(Raw, Factor).

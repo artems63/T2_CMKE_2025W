@@ -319,9 +319,6 @@
 
       const conf = pct(data.confidence_score);
       const env = pct(data.environmental_factor);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e204c284-4eff-48d3-a583-20cd58051e16',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:renderResult',message:'Percentage calculation',data:{confRaw:data.confidence_score,envRaw:data.environmental_factor,confPercent:conf,envPercent:env,confIsFinite:Number.isFinite(Number(data.confidence_score)),envIsFinite:Number.isFinite(Number(data.environmental_factor))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
 
       title.textContent = `Recommended: ${prettyLabel(data.recommended_transport)}`;
 
@@ -410,9 +407,7 @@
                         body: JSON.stringify(data)
                     });
                     const json = await res.json();
-                    // #region agent log
-                    fetch('http://127.0.0.1:7242/ingest/e204c284-4eff-48d3-a583-20cd58051e16',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:submitPreferences',message:'Frontend received response',data:{confidence_score:json.confidence_score,environmental_factor:json.environmental_factor,recommended_transport:json.recommended_transport,confType:typeof json.confidence_score,envType:typeof json.environmental_factor},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-                    // #endregion
+
                     renderResult(json);
                 } catch (err) {
                     console.error(err);
