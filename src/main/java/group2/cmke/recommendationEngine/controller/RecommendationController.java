@@ -43,6 +43,7 @@ import org.xml.sax.InputSource;
 import group2.cmke.recommendationEngine.drools.Fact;
 import org.kie.api.runtime.KieContainer;
 import tools.jackson.databind.ObjectMapper;
+import group2.cmke.recommendationEngine.prolog.EnvironmentalScoreService;
 
 @RestController
 @RequestMapping("/api")
@@ -70,6 +71,9 @@ public class RecommendationController {
   @Autowired
   private BikeSharingService bikeSharingService;
 
+  @Autowired
+  private EnvironmentalScoreService environmentalScoreService;
+
   // Sends the GET request to the Wiener Linien API
   // with our closest stop as input and with fallback to coordinates.
   private String fetchTripXml(
@@ -78,7 +82,6 @@ public class RecommendationController {
       double destinationLon, double destinationLat
   ) {
     try {
-
       HaltestellenService.Stop originStop =
           haltestellenService.findClosestStop(userLat, userLon);
       String originDiva = originStop.diva;
@@ -146,29 +149,35 @@ public class RecommendationController {
 
   private RecommendationResponseDTO runDrools(ContextDTO context, UserPreferencesDTO preferences) {
     Fact fact = new Fact(context, preferences);
-
     var session = kieContainer.newKieSession();
+
     try {
       session.insert(fact);
-
       int fired = session.fireAllRules();
       System.out.println("Drools fired rules: " + fired);
-
     } finally {
       session.dispose();
     }
 
     RecommendationResponseDTO resp = new RecommendationResponseDTO();
-    resp.setEnvironmental_factor(context.getEnvironmental_factor());
     resp.setConfidence_score(fact.getConfidenceScore());
 
     if (fact.getRecommended() != null) {
       resp.setRecommended_transport(fact.getRecommended().name());
+      // Calculate mode-specific environmental factor
+      double modeEnvFactor = environmentalScoreService.modeEnvironmentalFactor(
+          fact.getRecommended().name(),
+          context.distance_to_destination_meters,
+          preferences.weather_ok
+      );
+      resp.setEnvironmental_factor(modeEnvFactor);
     } else {
       resp.setRecommended_transport("UNKNOWN");
+      resp.setEnvironmental_factor(context.getEnvironmental_factor());
     }
 
     resp.setReason(fact.getReasons());
+
     return resp;
   }
 
@@ -188,71 +197,6 @@ public class RecommendationController {
     return parseTransportModesFromXml(xml);
   }
 
-  private static double clamp01(double x) {
-    return Math.max(0.0, Math.min(1.0, x));
-  }
-
-  private static double round2(double x) {
-    return Math.round(x * 100.0) / 100.0;
-  }
-
-  private double computeEnvironmentalFactor(ContextDTO ctx, UserPreferencesDTO pref) {
-    // 1) Walk support: best for short distances, requires good weather
-    double walkSupport = 0.0;
-    if (pref.weather_ok) {
-      // 0m -> 1.0, 2000m -> 0.0
-      walkSupport = clamp01(1.0 - (ctx.distance_to_destination_meters / 2000.0));
-    }
-
-    // 2) Bike sharing support: needs good weather + bikes + not too far from station
-    double bikeShareSupport = 0.0;
-    if (pref.weather_ok
-            && ctx.bikesAvailableAtStation
-            && ctx.distance_to_next_bikesharing_station_meters >= 0) {
-      // 0m -> 1.0, 800m -> 0.0
-      bikeShareSupport = clamp01(1.0 - (ctx.distance_to_next_bikesharing_station_meters / 800.0));
-    }
-
-    // 3) Public transport support: requires route present + station distance
-    double ptSupport = 0.0;
-    boolean ptRouteExists = (ctx.public_transport_best_option != null && !ctx.public_transport_best_option.isEmpty());
-    boolean ptAllowed = pref.has_public_transport_ticket || pref.is_open_to_buy_ticket;
-
-    if (ptRouteExists && ptAllowed && ctx.distance_to_next_public_transport_station_meters >= 0) {
-      // 0m -> 1.0, 1200m -> 0.0
-      double nearStop = clamp01(1.0 - (ctx.distance_to_next_public_transport_station_meters / 1200.0));
-      // PT is "eco-friendly", but not as perfect as walking -> cap it
-      ptSupport = 0.75 * nearStop;
-    } else if (ptRouteExists && !ptAllowed) {
-      // PT exists but blocked by ticket constraint -> small support
-      ptSupport = 0.05;
-    }
-
-    // 4) Car fallback: if only car is feasible, environmental factor should be low
-    // We don't know "feasible" here perfectly, so treat ownership as fallback signal.
-    double carFallback = 0.0;
-    if (pref.owns_electric_car) carFallback = 0.35;
-    else if (pref.owns_gas_car) carFallback = 0.15;
-
-    // Combine: emphasize low-impact supports, reduce if only car is plausible.
-    // We use a weighted max-like mixture: supports dominate; car fallback pulls down.
-    double ecoSupport = 0.45 * walkSupport
-            + 0.30 * bikeShareSupport
-            + 0.25 * ptSupport;
-
-    // If ecoSupport is very low, allow car fallback to be the only remaining "support",
-    // but keep overall factor low.
-    double factor = Math.max(ecoSupport, carFallback);
-
-    // Sustainability preference is not a magic boost; it should slightly increase sensitivity
-    // to eco options rather than add a constant.
-    if (pref.environmentally_sustainable) {
-      factor = clamp01(factor * 1.05);
-    }
-
-    return round2(factor);
-  }
-
   private ContextDTO buildBaseContext(
       double distanceMeters,
       List<TransportMode> transportModes, UserPreferencesDTO userPreferences
@@ -261,6 +205,13 @@ public class RecommendationController {
     context.distance_to_destination_meters = distanceMeters;
     context.walking_ok = distanceMeters <= 2000;
     context.public_transport_best_option = transportModes;
+
+    context.environmental_factor =
+            environmentalScoreService.environmentalFactor(
+                    distanceMeters,
+                    userPreferences.weather_ok,
+                    userPreferences.environmentally_sustainable
+            );
 
     return context;
   }
@@ -302,7 +253,6 @@ public class RecommendationController {
       UserPreferencesDTO userPreferences,
       ContextDTO context
   ) {
-
     BikeSharingService.BikeStation bikeStation =
         bikeSharingService.findClosestStationWithBikes(
             userPreferences.lat,
@@ -365,7 +315,6 @@ public class RecommendationController {
   // Also notifies the user with the recommendation from the drools engine.
   @PostMapping("/recommend")
   public RecommendationResponseDTO recommend(@RequestBody UserPreferencesDTO userPreferences) throws Exception {
-
     double distanceMeters = calculateDistanceToDestination(userPreferences);
 
     List<TransportMode> transportModes =
@@ -379,8 +328,6 @@ public class RecommendationController {
 
     BikeSharingService.BikeStation bikeStation =
         enrichContextWithBikeSharing(userPreferences, context);
-
-    context.environmental_factor = computeEnvironmentalFactor(context, userPreferences);
 
     RecommendationResponseDTO response =
         runDrools(context, userPreferences);

@@ -298,8 +298,12 @@
       const m = (mode || "").toString();
       const map = {
         PUBLIC_TRANSPORT: "Public transport",
-        BIKE_SHARING: "Bike sharing",
-        WALKING: "Walking",
+        BIKESHARE: "Bike sharing",
+        WALK: "Walking",
+        BIKE: "Bike",
+        E_BIKE: "E-bike",
+        GAS_CAR: "Gas car",
+        ELECTRIC_CAR: "Electric car",
         CAR: "Car"
       };
       return map[m] || m.replaceAll("_"," ").toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase());
@@ -354,6 +358,7 @@
 
         const owns_electric_car = ownedTransport.includes("Electric Car");
         const owns_gas_car = ownedTransport.includes("Gas Car");
+        const owns_e_bike = ownedTransport.includes("E-Bike");
         const owns_electric_micro_mobility = ownedTransport.includes("E-Bike") || ownedTransport.includes("E-Scooter");
         const owns_non_electric_transport = ownedTransport.includes("Bike") || ownedTransport.includes("Scooter");
 
@@ -364,103 +369,78 @@
         ? preferredTransport[0].toUpperCase().replaceAll(" ", "_").replaceAll("-", "_")
         : null;
 
+        // Default coordinates (Schottentor, Vienna)
+        const defaultLat = 48.1988288;
+        const defaultLon = 16.3064912;
 
+        // Function to send the recommendation request
+        const sendRecommendationRequest = (lat, lon) => {
+            const select = document.getElementById('destination');
+            const destinationDiva = select.value;
+            const destinationText = select.options[select.selectedIndex].text;
+            const destinationLon = parseFloat(select.options[select.selectedIndex].dataset.lon);
+            const destinationLat = parseFloat(select.options[select.selectedIndex].dataset.lat);
 
+            const data = {
+                environmentally_sustainable,
+                owns_non_electric_transport,
+                owns_electric_micro_mobility,
+                owns_e_bike,
+                owns_gas_car,
+                owns_electric_car,
+                has_public_transport_ticket,
+                is_open_to_buy_ticket,
+                wants_bike_sharing,
+                wants_public_transport,
+                preferred_transport_mode,
+                lat,
+                lon,
+                destination_text: destinationText,
+                destination_diva: destinationDiva,
+                destination_lon: destinationLon,
+                destination_lat: destinationLat,
+                weather_ok
+            };
 
+            console.log("Sending UserPreferencesDTO:", data);
 
+            (async () => {
+                try {
+                    const res = await fetch('/api/recommend', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(data)
+                    });
+                    const json = await res.json();
 
-
-
-
-
-
-
-
-
-        // should do the trick - Schottentor as starting point
-
-        let lat = 48.1988288;
-        let lon = 16.3064912;
-
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            pos => {
-              lat = pos.coords.latitude;
-              lon = pos.coords.longitude;
-            },
-            () => console.log("Geolocation denied, using default.")
-          );
-        }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        const select = document.getElementById('destination');
-        const destinationDiva = select.value;
-        const destinationText = select.options[select.selectedIndex].text;
-        const destinationLon = parseFloat(select.options[select.selectedIndex].dataset.lon);
-        const destinationLat = parseFloat(select.options[select.selectedIndex].dataset.lat);
-
-        const data = {
-            environmentally_sustainable,
-            owns_non_electric_transport,
-            owns_electric_micro_mobility,
-            owns_gas_car,
-            owns_electric_car,
-            has_public_transport_ticket,
-            is_open_to_buy_ticket,
-            wants_bike_sharing,
-            wants_public_transport,
-            preferred_transport_mode,
-            lat,
-            lon,
-            destination_text: destinationText,
-            destination_diva: destinationDiva,
-            destination_lon: destinationLon,
-            destination_lat: destinationLat,
-            weather_ok
+                    renderResult(json);
+                } catch (err) {
+                    console.error(err);
+                    document.getElementById('rawJson').textContent = "Error contacting server";
+                    document.getElementById('resultCard').style.display = "none";
+                } finally {
+                    spinner.style.display = 'none';
+                }
+            })();
         };
 
-        console.log("Sending UserPreferencesDTO:", data);
-
-        try {
-            const res = await fetch('/api/recommend', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            });
-            const json = await res.json();
-            renderResult(json);
-        } catch (err) {
-            console.error(err);
-            document.getElementById('rawJson').textContent = "Error contacting server";
-            document.getElementById('resultCard').style.display = "none";
-
-        } finally {
-            spinner.style.display = 'none';
+        // Try to get geolocation, then send request
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                pos => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    console.log("Using geolocation:", lat, lon);
+                    sendRecommendationRequest(lat, lon);
+                },
+                error => {
+                    console.log("Geolocation denied or failed, using default coordinates:", error);
+                    sendRecommendationRequest(defaultLat, defaultLon);
+                }
+            );
+        } else {
+            // No geolocation support, use defaults
+            sendRecommendationRequest(defaultLat, defaultLon);
         }
     }
 </script>

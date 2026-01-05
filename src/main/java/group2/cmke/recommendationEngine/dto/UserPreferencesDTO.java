@@ -6,6 +6,7 @@ public class UserPreferencesDTO {
   public boolean environmentally_sustainable;
   public boolean owns_non_electric_transport;
   public boolean owns_electric_micro_mobility;
+  public boolean owns_e_bike;
   public boolean owns_gas_car;
   public boolean owns_electric_car;
   public boolean has_public_transport_ticket;
@@ -163,6 +164,7 @@ public class UserPreferencesDTO {
             "environmentally_sustainable=" + environmentally_sustainable +
             ", owns_non_electric_transport=" + owns_non_electric_transport +
             ", owns_electric_micro_mobility=" + owns_electric_micro_mobility +
+            ", owns_e_bike=" + owns_e_bike +
             ", owns_gas_car=" + owns_gas_car +
             ", owns_electric_car=" + owns_electric_car +
             ", has_public_transport_ticket=" + has_public_transport_ticket +
