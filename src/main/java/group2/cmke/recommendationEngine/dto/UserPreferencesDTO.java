@@ -1,20 +1,32 @@
 package group2.cmke.recommendationEngine.dto;
 
+import java.util.List;
+
 // This DTO represents the userpreferences part of the JSON input file for our drools rules engine.
 // This information is given by the user himself from the frontend.
 public class UserPreferencesDTO {
   public boolean environmentally_sustainable;
-  public boolean owns_non_electric_transport;
-  public boolean owns_electric_micro_mobility;
+
+  // Legacy fields (keep for backward compatibility with existing rules/logic)
+  public boolean owns_non_electric_transport;        // should mean: owns BIKE
+  public boolean owns_electric_micro_mobility;       // should mean: owns E_BIKE or E_SCOOTER
   public boolean owns_e_bike;
   public boolean owns_gas_car;
   public boolean owns_electric_car;
+
+  // NEW: explicit scooter ownership (fixes scooter being treated as bike)
+  public boolean owns_scooter;
+  public boolean owns_e_scooter;
+
   public boolean has_public_transport_ticket;
   public boolean is_open_to_buy_ticket;
   public boolean wants_bike_sharing;
   public boolean wants_public_transport;
   public boolean weather_ok;
-  public String preferred_transport_mode;
+
+  // public String preferred_transport_mode;
+  public List<String> preferred_transport_modes;
+
   public double lat;
   public double lon;
   public String destination_diva;
@@ -46,6 +58,14 @@ public class UserPreferencesDTO {
     this.owns_electric_micro_mobility = owns_electric_micro_mobility;
   }
 
+  public boolean isOwns_e_bike() {
+    return owns_e_bike;
+  }
+
+  public void setOwns_e_bike(boolean owns_e_bike) {
+    this.owns_e_bike = owns_e_bike;
+  }
+
   public boolean isOwns_gas_car() {
     return owns_gas_car;
   }
@@ -60,6 +80,24 @@ public class UserPreferencesDTO {
 
   public void setOwns_electric_car(boolean owns_electric_car) {
     this.owns_electric_car = owns_electric_car;
+  }
+
+  // ---- NEW getters/setters for scooter ownership ----
+
+  public boolean isOwns_scooter() {
+    return owns_scooter;
+  }
+
+  public void setOwns_scooter(boolean owns_scooter) {
+    this.owns_scooter = owns_scooter;
+  }
+
+  public boolean isOwns_e_scooter() {
+    return owns_e_scooter;
+  }
+
+  public void setOwns_e_scooter(boolean owns_e_scooter) {
+    this.owns_e_scooter = owns_e_scooter;
   }
 
   public boolean isHas_public_transport_ticket() {
@@ -102,12 +140,20 @@ public class UserPreferencesDTO {
     this.weather_ok = weather_ok;
   }
 
-  public String getPreferred_transport_mode() {
-    return preferred_transport_mode;
+  // public String getPreferred_transport_mode() {
+  //   return preferred_transport_mode;
+  // }
+  //
+  // public void setPreferred_transport_mode(String preferred_transport_mode) {
+  //   this.preferred_transport_mode = preferred_transport_mode;
+  // }
+
+  public List<String> getPreferred_transport_modes() {
+    return preferred_transport_modes;
   }
 
-  public void setPreferred_transport_mode(String preferred_transport_mode) {
-    this.preferred_transport_mode = preferred_transport_mode;
+  public void setPreferred_transport_modes(List<String> preferred_transport_modes) {
+    this.preferred_transport_modes = preferred_transport_modes;
   }
 
   public double getLat() {
@@ -167,12 +213,15 @@ public class UserPreferencesDTO {
             ", owns_e_bike=" + owns_e_bike +
             ", owns_gas_car=" + owns_gas_car +
             ", owns_electric_car=" + owns_electric_car +
+            ", owns_scooter=" + owns_scooter +
+            ", owns_e_scooter=" + owns_e_scooter +
             ", has_public_transport_ticket=" + has_public_transport_ticket +
             ", is_open_to_buy_ticket=" + is_open_to_buy_ticket +
             ", wants_bike_sharing=" + wants_bike_sharing +
             ", wants_public_transport=" + wants_public_transport +
             ", weather_ok=" + weather_ok +
-            ", preferred_transport_mode='" + preferred_transport_mode + '\'' +
+            // ", preferred_transport_mode='" + preferred_transport_mode + '\'' +
+            ", preferred_transport_modes=" + preferred_transport_modes +
             ", lat=" + lat +
             ", lon=" + lon +
             ", destination_diva='" + destination_diva + '\'' +

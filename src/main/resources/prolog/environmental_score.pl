@@ -8,6 +8,9 @@ base_score(bikeshare, 0.95).
 base_score(public_transport, 0.80).
 base_score(electric_car, 0.60).
 base_score(gas_car, 0.25).
+base_score(scooter, 0.90).
+base_score(e_scooter, 0.88).
+
 
 % Penalty for bad weather for active modes (still eco-friendly, but less feasible)
 weather_penalty(true, 0.0).   % weather_ok = true

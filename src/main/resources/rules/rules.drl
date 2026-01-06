@@ -7,6 +7,38 @@ import group2.cmke.recommendationEngine.drools.Fact.Mode
 // 1) DISQUALIFICATION RULES
 // ---------------------------
 
+rule "DQ: Enforce allowed preferred transport modes"
+salience 190
+when
+  $f : Fact( preferences.preferred_transport_modes != null )
+then
+  java.util.List prefs = $f.getPreferences().getPreferred_transport_modes();
+  if (prefs == null || prefs.isEmpty()) {
+    // If user didn't select any preferred modes, do NOT filter anything.
+    return;
+  }
+
+  java.util.Set allowed = new java.util.HashSet();
+  for (Object o : prefs) {
+    if (o == null) continue;
+    String p = o.toString().trim().toUpperCase().replace('-', '_').replace(' ', '_');
+    allowed.add(p);
+  }
+
+  // Disqualify modes NOT in allowed set, but do NOT spam reasons per mode.
+  for (Mode m : Mode.values()) {
+    if (!allowed.contains(m.name())) {
+      // empty reason => no spam in UI
+      $f.disqualify(m, "", drools.getRule().getName());
+    }
+  }
+
+  // Add ONE clear human reason (only once)
+  $f.getReasons().add("You limited the recommendation to these transport types: " + allowed + ".");
+  $f.getRulesTriggered().add(drools.getRule().getName());
+end
+
+
 rule "DQ: Walk too far"
 salience 150
 when
@@ -23,9 +55,13 @@ then
   $f.disqualify(Mode.BIKE, "Biking is not suitable because the distance is too long.", drools.getRule().getName());
   $f.disqualify(Mode.E_BIKE, "E-biking is not suitable because the distance is too long.", drools.getRule().getName());
   $f.disqualify(Mode.BIKESHARE, "Bike sharing is not suitable because the distance is too long.", drools.getRule().getName());
+
+  // Scooters usually become unrealistic at very long distances too
+  $f.disqualify(Mode.SCOOTER, "Scooter is not suitable because the distance is too long.", drools.getRule().getName());
+  $f.disqualify(Mode.E_SCOOTER, "E-scooter is not suitable because the distance is too long.", drools.getRule().getName());
 end
 
-rule "DQ: Bad weather disables bike and bike sharing"
+rule "DQ: Bad weather disables active micromobility"
 salience 160
 when
   $f : Fact( preferences.weather_ok == false )
@@ -33,6 +69,8 @@ then
   $f.disqualify(Mode.BIKE, "Biking is discouraged due to bad weather.", drools.getRule().getName());
   $f.disqualify(Mode.E_BIKE, "E-biking is discouraged due to bad weather.", drools.getRule().getName());
   $f.disqualify(Mode.BIKESHARE, "Bike sharing is discouraged due to bad weather.", drools.getRule().getName());
+  $f.disqualify(Mode.SCOOTER, "Scooter is discouraged due to bad weather.", drools.getRule().getName());
+  $f.disqualify(Mode.E_SCOOTER, "E-scooter is discouraged due to bad weather.", drools.getRule().getName());
 end
 
 rule "DQ: Public transport not possible (no ticket and not open to buy)"
@@ -53,20 +91,33 @@ then
   $f.disqualify(Mode.BIKESHARE, "Bike sharing is not available because there are no bikes at the nearest station.", drools.getRule().getName());
 end
 
+
+// ---- Noise-controlled ownership rule for BikeShare ----
 rule "DQ: Bike sharing not needed if user owns bike"
 salience 165
 when
   $f : Fact( preferences.owns_non_electric_transport == true )
 then
-  $f.disqualify(Mode.BIKESHARE, "Bike sharing is not needed because you already own a bike.", drools.getRule().getName());
+  // Only show the human reason if BIKESHARE is still an allowed candidate.
+  if (!$f.isDisqualified(Mode.BIKESHARE)) {
+    $f.disqualify(Mode.BIKESHARE, "Bike sharing is not needed because you already own a bike.", drools.getRule().getName());
+  } else {
+    $f.disqualify(Mode.BIKESHARE, "", drools.getRule().getName());
+  }
 end
 
+
+// ---- Noise-controlled ownership rules ----
 rule "DQ: Normal bike not available (user does not own non-electric transport)"
 salience 140
 when
   $f : Fact( preferences.owns_non_electric_transport == false )
 then
-  $f.disqualify(Mode.BIKE, "A normal bike is not considered because you do not own one.", drools.getRule().getName());
+  if (!$f.isDisqualified(Mode.BIKE)) {
+    $f.disqualify(Mode.BIKE, "A normal bike is not considered because you do not own one.", drools.getRule().getName());
+  } else {
+    $f.disqualify(Mode.BIKE, "", drools.getRule().getName());
+  }
 end
 
 rule "DQ: E-bike not available (user does not own e-bike)"
@@ -74,7 +125,35 @@ salience 140
 when
   $f : Fact( preferences.owns_e_bike == false )
 then
-  $f.disqualify(Mode.E_BIKE, "An e-bike is not considered because you do not own one.", drools.getRule().getName());
+  if (!$f.isDisqualified(Mode.E_BIKE)) {
+    $f.disqualify(Mode.E_BIKE, "An e-bike is not considered because you do not own one.", drools.getRule().getName());
+  } else {
+    $f.disqualify(Mode.E_BIKE, "", drools.getRule().getName());
+  }
+end
+
+rule "DQ: Scooter not available (user does not own scooter)"
+salience 140
+when
+  $f : Fact( preferences.owns_scooter == false )
+then
+  if (!$f.isDisqualified(Mode.SCOOTER)) {
+    $f.disqualify(Mode.SCOOTER, "Scooter is not considered because you do not own one.", drools.getRule().getName());
+  } else {
+    $f.disqualify(Mode.SCOOTER, "", drools.getRule().getName());
+  }
+end
+
+rule "DQ: E-scooter not available (user does not own e-scooter)"
+salience 140
+when
+  $f : Fact( preferences.owns_e_scooter == false )
+then
+  if (!$f.isDisqualified(Mode.E_SCOOTER)) {
+    $f.disqualify(Mode.E_SCOOTER, "E-scooter is not considered because you do not own one.", drools.getRule().getName());
+  } else {
+    $f.disqualify(Mode.E_SCOOTER, "", drools.getRule().getName());
+  }
 end
 
 rule "DQ: Gas car not available (user does not own gas car)"
@@ -82,7 +161,11 @@ salience 140
 when
   $f : Fact( preferences.owns_gas_car == false )
 then
-  $f.disqualify(Mode.GAS_CAR, "A gas car is not considered because you do not own one.", drools.getRule().getName());
+  if (!$f.isDisqualified(Mode.GAS_CAR)) {
+    $f.disqualify(Mode.GAS_CAR, "A gas car is not considered because you do not own one.", drools.getRule().getName());
+  } else {
+    $f.disqualify(Mode.GAS_CAR, "", drools.getRule().getName());
+  }
 end
 
 rule "DQ: Electric car not available (user does not own electric car)"
@@ -90,7 +173,11 @@ salience 140
 when
   $f : Fact( preferences.owns_electric_car == false )
 then
-  $f.disqualify(Mode.ELECTRIC_CAR, "An electric car is not considered because you do not own one.", drools.getRule().getName());
+  if (!$f.isDisqualified(Mode.ELECTRIC_CAR)) {
+    $f.disqualify(Mode.ELECTRIC_CAR, "An electric car is not considered because you do not own one.", drools.getRule().getName());
+  } else {
+    $f.disqualify(Mode.ELECTRIC_CAR, "", drools.getRule().getName());
+  }
 end
 
 
@@ -114,6 +201,14 @@ then
   $f.addScore(Mode.BIKESHARE, -10, "You did not express a preference for bike sharing.", drools.getRule().getName());
 end
 
+rule "SCORE: Open to buy ticket helps PT"
+salience 45
+when
+  $f : Fact( preferences.is_open_to_buy_ticket == true )
+then
+  $f.addScore(Mode.PUBLIC_TRANSPORT, 5, "You are open to buying a ticket, so public transport is easier.", drools.getRule().getName());
+end
+
 // High-impact: sustainability
 rule "SCORE: Sustainability strongly favors eco modes"
 salience 90
@@ -123,13 +218,14 @@ then
   $f.addScore(Mode.WALK, 40, "You prioritize sustainability, so walking is favored.", drools.getRule().getName());
   $f.addScore(Mode.BIKE, 40, "You prioritize sustainability, so biking is favored.", drools.getRule().getName());
   $f.addScore(Mode.E_BIKE, 38, "You prioritize sustainability, so e-biking is favored.", drools.getRule().getName());
+  $f.addScore(Mode.SCOOTER, 35, "You prioritize sustainability, so scooter is favored.", drools.getRule().getName());
+  $f.addScore(Mode.E_SCOOTER, 35, "You prioritize sustainability, so e-scooter is favored.", drools.getRule().getName());
   $f.addScore(Mode.BIKESHARE, 35, "You prioritize sustainability, so bike sharing is favored.", drools.getRule().getName());
   $f.addScore(Mode.PUBLIC_TRANSPORT, 25, "You prioritize sustainability, so public transport is favored.", drools.getRule().getName());
   $f.addScore(Mode.ELECTRIC_CAR, -10, "You prioritize sustainability, but electric cars are more sustainable than gas cars.", drools.getRule().getName());
   $f.addScore(Mode.GAS_CAR, -30, "You prioritize sustainability, so driving a gas car is strongly discouraged.", drools.getRule().getName());
 end
 
-// Medium impact: has ticket
 rule "SCORE: Has public transport ticket boosts PT"
 salience 80
 when
@@ -138,7 +234,6 @@ then
   $f.addScore(Mode.PUBLIC_TRANSPORT, 15, "You have a public transport ticket, which makes public transport easier.", drools.getRule().getName());
 end
 
-// Medium impact: owns non-electric transport (bike)
 rule "SCORE: Owns non-electric transport boosts bike"
 salience 70
 when
@@ -147,7 +242,6 @@ then
   $f.addScore(Mode.BIKE, 20, "You own a bike, so using your own bike is practical.", drools.getRule().getName());
 end
 
-// Medium impact: owns e-bike
 rule "SCORE: Owns e-bike boosts e-bike"
 salience 70
 when
@@ -155,6 +249,23 @@ when
 then
   $f.addScore(Mode.E_BIKE, 20, "You own an e-bike, so using your e-bike is practical.", drools.getRule().getName());
 end
+
+rule "SCORE: Owns scooter boosts scooter"
+salience 70
+when
+  $f : Fact( preferences.owns_scooter == true )
+then
+  $f.addScore(Mode.SCOOTER, 20, "You own a scooter, so using your scooter is practical.", drools.getRule().getName());
+end
+
+rule "SCORE: Owns e-scooter boosts e-scooter"
+salience 70
+when
+  $f : Fact( preferences.owns_e_scooter == true )
+then
+  $f.addScore(Mode.E_SCOOTER, 20, "You own an e-scooter, so using your e-scooter is practical.", drools.getRule().getName());
+end
+
 
 // Distance band scoring (non-overlapping ranges)
 rule "SCORE: Distance < 1000m favors walk"
@@ -165,9 +276,11 @@ then
   $f.addScore(Mode.WALK, 35, "The destination is nearby, so walking is efficient.", drools.getRule().getName());
   $f.addScore(Mode.BIKE, 15, "The destination is nearby, biking is convenient.", drools.getRule().getName());
   $f.addScore(Mode.E_BIKE, 15, "The destination is nearby, e-biking is convenient.", drools.getRule().getName());
+  $f.addScore(Mode.SCOOTER, 15, "The destination is nearby, scooter is convenient.", drools.getRule().getName());
+  $f.addScore(Mode.E_SCOOTER, 15, "The destination is nearby, e-scooter is convenient.", drools.getRule().getName());
 end
 
-rule "SCORE: Distance 1000-3000m favors bike"
+rule "SCORE: Distance 1000-3000m favors bike/scooter"
 salience 60
 when
   $f : Fact( context.distance_to_destination_meters >= 1000,
@@ -175,6 +288,8 @@ when
 then
   $f.addScore(Mode.BIKE, 25, "The distance is suitable for biking.", drools.getRule().getName());
   $f.addScore(Mode.E_BIKE, 25, "The distance is suitable for e-biking.", drools.getRule().getName());
+  $f.addScore(Mode.SCOOTER, 22, "The distance is suitable for scooter.", drools.getRule().getName());
+  $f.addScore(Mode.E_SCOOTER, 22, "The distance is suitable for e-scooter.", drools.getRule().getName());
   $f.addScore(Mode.BIKESHARE, 20, "The distance is suitable for bike sharing.", drools.getRule().getName());
 end
 
@@ -209,7 +324,6 @@ then
   $f.addScore(Mode.ELECTRIC_CAR, 27, "Very long distance makes an electric car practical.", drools.getRule().getName());
 end
 
-// Station proximity scoring (guard against -1)
 rule "SCORE: PT station near"
 salience 65
 when
@@ -229,41 +343,63 @@ then
   $f.addScore(Mode.BIKESHARE, 20, "A bike sharing station with available bikes is nearby.", drools.getRule().getName());
 end
 
-// Preferred transport mode soft boost (use what you already collect)
 rule "SCORE: Preferred mode boost"
 salience 75
 when
-  $f : Fact( preferences.preferred_transport_mode != null,
-             preferences.preferred_transport_mode != "" )
+  $f : Fact( preferences.preferred_transport_modes != null )
 then
-  String p = $f.getPreferences().getPreferred_transport_mode();
-  if (p != null) p = p.trim();
+  java.util.List prefs = $f.getPreferences().getPreferred_transport_modes();
+  if (prefs == null || prefs.isEmpty()) return;
 
-  if ("WALK".equalsIgnoreCase(p)) { $f.addScore(Mode.WALK, 12, "You prefer walking.", drools.getRule().getName()); }
-  else if ("BIKE".equalsIgnoreCase(p)) { $f.addScore(Mode.BIKE, 12, "You prefer biking.", drools.getRule().getName()); }
-  else if ("E_BIKE".equalsIgnoreCase(p) || "E-BIKE".equalsIgnoreCase(p)) { $f.addScore(Mode.E_BIKE, 12, "You prefer e-biking.", drools.getRule().getName()); }
-  else if ("BIKESHARE".equalsIgnoreCase(p)) { $f.addScore(Mode.BIKESHARE, 12, "You prefer bike sharing.", drools.getRule().getName()); }
-  else if ("PUBLIC_TRANSPORT".equalsIgnoreCase(p)) { $f.addScore(Mode.PUBLIC_TRANSPORT, 12, "You prefer public transport.", drools.getRule().getName()); }
-  else if ("GAS_CAR".equalsIgnoreCase(p) || "GAS CAR".equalsIgnoreCase(p)) { $f.addScore(Mode.GAS_CAR, 12, "You prefer using a gas car.", drools.getRule().getName()); }
-  else if ("ELECTRIC_CAR".equalsIgnoreCase(p) || "ELECTRIC CAR".equalsIgnoreCase(p)) { $f.addScore(Mode.ELECTRIC_CAR, 12, "You prefer using an electric car.", drools.getRule().getName()); }
-  else if ("CAR".equalsIgnoreCase(p)) { 
-    $f.addScore(Mode.GAS_CAR, 10, "You prefer using a car (gas).", drools.getRule().getName()); 
-    $f.addScore(Mode.ELECTRIC_CAR, 12, "You prefer using a car (electric preferred).", drools.getRule().getName()); 
+  for (Object o : prefs) {
+    if (o == null) continue;
+
+    String p = o.toString().trim().toUpperCase()
+                .replace('-', '_')
+                .replace(' ', '_');
+
+    if ("WALK".equals(p)) {
+      $f.addScore(Mode.WALK, 12, "You prefer walking.", drools.getRule().getName());
+    }
+    else if ("BIKE".equals(p)) {
+      $f.addScore(Mode.BIKE, 12, "You prefer biking.", drools.getRule().getName());
+    }
+    else if ("E_BIKE".equals(p)) {
+      $f.addScore(Mode.E_BIKE, 12, "You prefer e-biking.", drools.getRule().getName());
+    }
+    else if ("SCOOTER".equals(p)) {
+      $f.addScore(Mode.SCOOTER, 12, "You prefer scooter.", drools.getRule().getName());
+    }
+    else if ("E_SCOOTER".equals(p)) {
+      $f.addScore(Mode.E_SCOOTER, 12, "You prefer e-scooter.", drools.getRule().getName());
+    }
+    else if ("BIKESHARE".equals(p)) {
+      $f.addScore(Mode.BIKESHARE, 12, "You prefer bike sharing.", drools.getRule().getName());
+    }
+    else if ("PUBLIC_TRANSPORT".equals(p)) {
+      $f.addScore(Mode.PUBLIC_TRANSPORT, 12, "You prefer public transport.", drools.getRule().getName());
+    }
+    else if ("GAS_CAR".equals(p)) {
+      $f.addScore(Mode.GAS_CAR, 12, "You prefer gas car.", drools.getRule().getName());
+    }
+    else if ("ELECTRIC_CAR".equals(p)) {
+      $f.addScore(Mode.ELECTRIC_CAR, 12, "You prefer electric car.", drools.getRule().getName());
+    }
   }
 end
 
-
-// Environmental factor (optional integration)
 rule "SCORE: High environmental factor boosts eco modes"
 salience 55
 when
   $f : Fact( preferences.environmentally_sustainable == true,
              context.environmental_factor >= 0.75 )
 then
-  $f.addScore(Mode.WALK, 10, "Environmental conditions support low-impact transport.", drools.getRule().getName());
-  $f.addScore(Mode.BIKE, 10, "Environmental conditions support low-impact transport.", drools.getRule().getName());
-  $f.addScore(Mode.E_BIKE, 9, "Environmental conditions support low-impact transport.", drools.getRule().getName());
-  $f.addScore(Mode.PUBLIC_TRANSPORT, 5, "Environmental conditions support public transport.", drools.getRule().getName());
+  $f.addScore(Mode.WALK, 10, "High environmental factor favors walking.", drools.getRule().getName());
+  $f.addScore(Mode.BIKE, 10, "High environmental factor favors biking.", drools.getRule().getName());
+  $f.addScore(Mode.E_BIKE, 9, "High environmental factor favors e-biking.", drools.getRule().getName());
+  $f.addScore(Mode.SCOOTER, 9, "High environmental factor favors scooter.", drools.getRule().getName());
+  $f.addScore(Mode.E_SCOOTER, 9, "High environmental factor favors e-scooter.", drools.getRule().getName());
+  $f.addScore(Mode.PUBLIC_TRANSPORT, 5, "High environmental factor favors public transport.", drools.getRule().getName());
 end
 
 rule "SCORE: Good weather boosts active modes"
@@ -274,6 +410,8 @@ then
   $f.addScore(Mode.WALK, 10, "Good weather supports walking.", drools.getRule().getName());
   $f.addScore(Mode.BIKE, 10, "Good weather supports biking.", drools.getRule().getName());
   $f.addScore(Mode.E_BIKE, 10, "Good weather supports e-biking.", drools.getRule().getName());
+  $f.addScore(Mode.SCOOTER, 10, "Good weather supports scooter.", drools.getRule().getName());
+  $f.addScore(Mode.E_SCOOTER, 10, "Good weather supports e-scooter.", drools.getRule().getName());
 end
 
 rule "SCORE: Bad weather slightly boosts PT/car"
@@ -305,12 +443,12 @@ salience -10
 when
   $f : Fact()
 then
-  Fact.Mode best = null;
+  Mode best = null;
   int bestScore = Integer.MIN_VALUE;
   int secondScore = Integer.MIN_VALUE;
 
-  for (java.util.Map.Entry<Fact.Mode, Integer> e : $f.getAllScores().entrySet()) {
-    Fact.Mode m = e.getKey();
+  for (java.util.Map.Entry<Mode, Integer> e : $f.getAllScores().entrySet()) {
+    Mode m = e.getKey();
     if ($f.isDisqualified(m)) continue;
 
     int s = e.getValue();

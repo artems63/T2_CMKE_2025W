@@ -6,7 +6,8 @@ import group2.cmke.recommendationEngine.dto.UserPreferencesDTO;
 
 public class Fact {
 
-  public enum Mode { WALK, BIKE, E_BIKE, BIKESHARE, PUBLIC_TRANSPORT, GAS_CAR, ELECTRIC_CAR }
+  public enum Mode { WALK, BIKE, E_BIKE, SCOOTER, E_SCOOTER, BIKESHARE, PUBLIC_TRANSPORT, GAS_CAR, ELECTRIC_CAR }
+
 
   private final ContextDTO context;
   private final UserPreferencesDTO preferences;

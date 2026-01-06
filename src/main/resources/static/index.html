@@ -80,7 +80,7 @@
             min-height: 50px;
             white-space: pre-wrap;
         }
-        
+
         #spinner {
             display: none;
             position: fixed;
@@ -302,13 +302,14 @@
         WALK: "Walking",
         BIKE: "Bike",
         E_BIKE: "E-bike",
+        SCOOTER: "Scooter",
+        E_SCOOTER: "E-scooter",
         GAS_CAR: "Gas car",
         ELECTRIC_CAR: "Electric car",
         CAR: "Car"
       };
       return map[m] || m.replaceAll("_"," ").toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase());
     }
-
 
     function pct(x) {
       const n = Number(x);
@@ -335,6 +336,8 @@
 
       reasonsList.innerHTML = '';
       (data.reason || []).forEach(r => {
+        // guard: ignore empty strings
+        if (!r || !r.toString().trim()) return;
         const li = document.createElement('li');
         li.textContent = r;
         reasonsList.appendChild(li);
@@ -356,18 +359,40 @@
         const ownedTransport = Array.from(document.querySelectorAll('#ownedTransport button.selected')).map(btn => btn.textContent);
         const preferredTransport = Array.from(document.querySelectorAll('#preferredTransport button.selected')).map(btn => btn.textContent);
 
+        // ---- Ownership flags (FIXED: scooter is NOT treated as "bike") ----
         const owns_electric_car = ownedTransport.includes("Electric Car");
         const owns_gas_car = ownedTransport.includes("Gas Car");
+
+        const owns_bike = ownedTransport.includes("Bike");
         const owns_e_bike = ownedTransport.includes("E-Bike");
-        const owns_electric_micro_mobility = ownedTransport.includes("E-Bike") || ownedTransport.includes("E-Scooter");
-        const owns_non_electric_transport = ownedTransport.includes("Bike") || ownedTransport.includes("Scooter");
+
+        const owns_scooter = ownedTransport.includes("Scooter");
+        const owns_e_scooter = ownedTransport.includes("E-Scooter");
+
+        // Keep legacy fields (if backend still expects them)
+        const owns_non_electric_transport = owns_bike;                 // ONLY BIKE
+        const owns_electric_micro_mobility = owns_e_bike || owns_e_scooter; // E-bike or E-scooter
 
         const wants_public_transport = preferredTransport.includes("Public Transport");
         const wants_bike_sharing = preferredTransport.includes("Bike") || preferredTransport.includes("E-Bike");
 
-        preferred_transport_mode = preferredTransport.length > 0
-        ? preferredTransport[0].toUpperCase().replaceAll(" ", "_").replaceAll("-", "_")
-        : null;
+        // ---- Preferred transport modes (multi-select) ----
+        const preferred_transport_modes = preferredTransport.map(t => {
+            const raw = t.trim();
+
+            const map = {
+                "Walking": "WALK",
+                "Bike": "BIKE",
+                "E-Bike": "E_BIKE",
+                "Scooter": "SCOOTER",
+                "E-Scooter": "E_SCOOTER",
+                "Public Transport": "PUBLIC_TRANSPORT",
+                "Gas Car": "GAS_CAR",
+                "Electric Car": "ELECTRIC_CAR",
+            };
+
+            return map[raw] ?? raw.toUpperCase().replaceAll(" ", "_").replaceAll("-", "_");
+        });
 
         // Default coordinates (Schottentor, Vienna)
         const defaultLat = 48.1988288;
@@ -383,16 +408,25 @@
 
             const data = {
                 environmentally_sustainable,
+
+                // legacy ownership fields
                 owns_non_electric_transport,
                 owns_electric_micro_mobility,
                 owns_e_bike,
                 owns_gas_car,
                 owns_electric_car,
+
+                // NEW: scooter ownership fields (backend must support these)
+                owns_scooter,
+                owns_e_scooter,
+
                 has_public_transport_ticket,
                 is_open_to_buy_ticket,
                 wants_bike_sharing,
                 wants_public_transport,
-                preferred_transport_mode,
+
+                preferred_transport_modes,
+
                 lat,
                 lon,
                 destination_text: destinationText,
