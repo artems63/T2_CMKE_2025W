@@ -7,6 +7,24 @@ public class RecommendationResponseDTO {
   public double environmental_factor;
   public double confidence_score;
   public List<String> reason;
+  private String decision_timestamp;
+  private String destination;
+
+  public String getDecisionTimestamp() {
+    return decision_timestamp;
+  }
+
+  public void setDecisionTimestamp(String decision_timestamp) {
+    this.decision_timestamp = decision_timestamp;
+  }
+
+  public String getDestination() {
+    return destination;
+  }
+
+  public void setDestination(String destination) {
+    this.destination = destination;
+  }
 
   public String getRecommended_transport() {
     return recommended_transport;

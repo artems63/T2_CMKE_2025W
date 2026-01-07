@@ -332,6 +332,11 @@ public class RecommendationController {
     RecommendationResponseDTO response =
         runDrools(context, userPreferences);
 
+    if ("PUBLIC_TRANSPORT".equals(response.recommended_transport) &&
+        !transportModes.isEmpty()) {
+      response.recommended_transport = transportModes.toString();
+    }
+
     logDebugInfo(
         userPreferences,
         context,
@@ -341,7 +346,7 @@ public class RecommendationController {
         distanceMeters
     );
 
-    appendDecisionToFile(response);
+    appendDecisionToFile(response, userPreferences.destination_text);
 
     return response;
   }
@@ -431,10 +436,12 @@ public class RecommendationController {
     return removeDuplicates(result);
   }
 
-  private void appendDecisionToFile(RecommendationResponseDTO response) {
+  private void appendDecisionToFile(RecommendationResponseDTO response, String destination) {
     try {
       Path file = decisionFile();
       Files.createDirectories(file.getParent());
+      response.setDecisionTimestamp(java.time.OffsetDateTime.now().toString());
+      response.setDestination(destination);
 
       String jsonLine = objectMapper.writeValueAsString(response);
 

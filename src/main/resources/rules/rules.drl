@@ -433,6 +433,112 @@ then
   $f.addScore(Mode.BIKESHARE, -15, "Bike sharing station is far away, making it less convenient.", drools.getRule().getName());
 end
 
+// ---------------------------------------------
+// Distance-based fallback if WALK is NOT preferred
+// ---------------------------------------------
+
+rule "SCORE: Short distance micromobility fallback (walk not preferred)"
+salience 61
+when
+  $f : Fact(
+    context.distance_to_destination_meters < 500,
+    preferences.preferred_transport_modes != null
+  )
+then
+  java.util.List prefs = $f.getPreferences().getPreferred_transport_modes();
+  boolean walkPreferred = false;
+
+  for (Object o : prefs) {
+    if (o == null) continue;
+    String p = o.toString().trim().toUpperCase().replace('-', '_').replace(' ', '_');
+    if ("WALK".equals(p)) {
+      walkPreferred = true;
+      break;
+    }
+  }
+
+  if (!walkPreferred) {
+    $f.addScore(Mode.SCOOTER, 20, "Very short distance and walking is not preferred, so scooter is favored.", drools.getRule().getName());
+  }
+end
+
+rule "SCORE: Short distance e-scooter fallback (walk not preferred)"
+salience 61
+when
+  $f : Fact(
+    context.distance_to_destination_meters >= 500,
+    context.distance_to_destination_meters < 1000,
+    preferences.preferred_transport_modes != null
+  )
+then
+  java.util.List prefs = $f.getPreferences().getPreferred_transport_modes();
+  boolean walkPreferred = false;
+
+  for (Object o : prefs) {
+    if (o == null) continue;
+    String p = o.toString().trim().toUpperCase().replace('-', '_').replace(' ', '_');
+    if ("WALK".equals(p)) {
+      walkPreferred = true;
+      break;
+    }
+  }
+
+  if (!walkPreferred) {
+    $f.addScore(Mode.E_SCOOTER, 22, "Short distance and walking is not preferred, so e-scooter is favored.", drools.getRule().getName());
+  }
+end
+
+rule "SCORE: Medium distance bike fallback (walk not preferred)"
+salience 61
+when
+  $f : Fact(
+    context.distance_to_destination_meters >= 1000,
+    context.distance_to_destination_meters < 3000,
+    preferences.preferred_transport_modes != null
+  )
+then
+  java.util.List prefs = $f.getPreferences().getPreferred_transport_modes();
+  boolean walkPreferred = false;
+
+  for (Object o : prefs) {
+    if (o == null) continue;
+    String p = o.toString().trim().toUpperCase().replace('-', '_').replace(' ', '_');
+    if ("WALK".equals(p)) {
+      walkPreferred = true;
+      break;
+    }
+  }
+
+  if (!walkPreferred) {
+    $f.addScore(Mode.BIKE, 25, "Medium distance and walking is not preferred, so biking is favored.", drools.getRule().getName());
+  }
+end
+
+rule "SCORE: Long medium distance e-bike fallback (walk not preferred)"
+salience 61
+when
+  $f : Fact(
+    context.distance_to_destination_meters >= 3000,
+    context.distance_to_destination_meters <= 5000,
+    preferences.preferred_transport_modes != null
+  )
+then
+  java.util.List prefs = $f.getPreferences().getPreferred_transport_modes();
+  boolean walkPreferred = false;
+
+  for (Object o : prefs) {
+    if (o == null) continue;
+    String p = o.toString().trim().toUpperCase().replace('-', '_').replace(' ', '_');
+    if ("WALK".equals(p)) {
+      walkPreferred = true;
+      break;
+    }
+  }
+
+  if (!walkPreferred) {
+    $f.addScore(Mode.E_BIKE, 25, "Longer medium distance and walking is not preferred, so e-biking is favored.", drools.getRule().getName());
+  }
+end
 
 // ---------------------------
 // 3) FINAL DECISION RULE

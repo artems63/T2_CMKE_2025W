@@ -21,9 +21,33 @@ public class TransportMode {
 
   @Override
   public String toString() {
-    return "TransportMode{" +
-        "mode='" + mode + '\'' +
-        ", lineName='" + lineName + '\'' +
-        '}';
+    if (mode == null || mode.isBlank()) {
+      return "";
+    }
+
+    String normalizedMode = mode.trim().toLowerCase();
+
+    String prettyMode;
+    switch (normalizedMode) {
+      case "u-bahn":
+      case "ubahn":
+        prettyMode = "U-Bahn";
+        break;
+      case "s-bahn":
+      case "sbahn":
+        prettyMode = "S-Bahn";
+        break;
+      default:
+        prettyMode =
+            normalizedMode.substring(0, 1).toUpperCase() +
+                normalizedMode.substring(1);
+        break;
+    }
+
+    if (lineName == null || lineName.isBlank()) {
+      return prettyMode;
+    }
+
+    return prettyMode + " " + lineName;
   }
 }
