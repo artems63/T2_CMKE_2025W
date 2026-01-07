@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.xpath.XPath;
@@ -332,9 +333,12 @@ public class RecommendationController {
     RecommendationResponseDTO response =
         runDrools(context, userPreferences);
 
-    if ("PUBLIC_TRANSPORT".equals(response.recommended_transport) &&
-        !transportModes.isEmpty()) {
-      response.recommended_transport = transportModes.toString();
+    if ("PUBLIC_TRANSPORT".equals(response.recommended_transport) && !transportModes.isEmpty()) {
+      String joinedModes = transportModes.stream()
+          .map(Object::toString)
+          .collect(Collectors.joining(" - "));
+
+      response.recommended_transport += " " + joinedModes;
     }
 
     logDebugInfo(

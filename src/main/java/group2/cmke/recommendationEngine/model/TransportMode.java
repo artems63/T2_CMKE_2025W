@@ -27,22 +27,12 @@ public class TransportMode {
 
     String normalizedMode = mode.trim().toLowerCase();
 
-    String prettyMode;
-    switch (normalizedMode) {
-      case "u-bahn":
-      case "ubahn":
-        prettyMode = "U-Bahn";
-        break;
-      case "s-bahn":
-      case "sbahn":
-        prettyMode = "S-Bahn";
-        break;
-      default:
-        prettyMode =
-            normalizedMode.substring(0, 1).toUpperCase() +
-                normalizedMode.substring(1);
-        break;
-    }
+    String prettyMode = switch (normalizedMode) {
+      case "u-bahn", "ubahn" -> "U-Bahn";
+      case "s-bahn", "sbahn" -> "S-Bahn";
+      default -> normalizedMode.substring(0, 1).toUpperCase() +
+          normalizedMode.substring(1);
+    };
 
     if (lineName == null || lineName.isBlank()) {
       return prettyMode;
