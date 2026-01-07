@@ -44,7 +44,7 @@ salience 150
 when
   $f : Fact( context.distance_to_destination_meters > 2000 )
 then
-  $f.disqualify(Mode.WALK, "Walking is not suitable because the distance is too long.", drools.getRule().getName());
+  $f.disqualify(Mode.WALK, "Walking is not suitable because the distance is too long (max. 2km).", drools.getRule().getName());
 end
 
 rule "DQ: Bike too far"
@@ -52,13 +52,11 @@ salience 150
 when
   $f : Fact( context.distance_to_destination_meters > 8000 )
 then
-  $f.disqualify(Mode.BIKE, "Biking is not suitable because the distance is too long.", drools.getRule().getName());
-  $f.disqualify(Mode.E_BIKE, "E-biking is not suitable because the distance is too long.", drools.getRule().getName());
-  $f.disqualify(Mode.BIKESHARE, "Bike sharing is not suitable because the distance is too long.", drools.getRule().getName());
-
-  // Scooters usually become unrealistic at very long distances too
-  $f.disqualify(Mode.SCOOTER, "Scooter is not suitable because the distance is too long.", drools.getRule().getName());
-  $f.disqualify(Mode.E_SCOOTER, "E-scooter is not suitable because the distance is too long.", drools.getRule().getName());
+  $f.disqualify(Mode.BIKE, "Biking is not suitable because the distance is too long (max. 5km).", drools.getRule().getName());
+  $f.disqualify(Mode.E_BIKE, "E-biking is not suitable because the distance is too long (max. 8km).", drools.getRule().getName());
+  $f.disqualify(Mode.BIKESHARE, "Bike sharing is not suitable because the distance is too long (max. 5km).", drools.getRule().getName());
+  $f.disqualify(Mode.SCOOTER, "Scooter is not suitable because the distance is too long (max. 2km).", drools.getRule().getName());
+  $f.disqualify(Mode.E_SCOOTER, "E-scooter is not suitable because the distance is too long (max. 3km).", drools.getRule().getName());
 end
 
 rule "DQ: Bad weather disables active micromobility"
@@ -105,7 +103,6 @@ then
     $f.disqualify(Mode.BIKESHARE, "", drools.getRule().getName());
   }
 end
-
 
 // ---- Noise-controlled ownership rules ----
 rule "DQ: Normal bike not available (user does not own non-electric transport)"
@@ -180,6 +177,21 @@ then
   }
 end
 
+rule "DQ: Scooter too far"
+salience 150
+when
+  $f : Fact( context.distance_to_destination_meters > 2000 )
+then
+  $f.disqualify(Mode.SCOOTER, "Scooter is not suitable because the distance is too long (>2 km).", drools.getRule().getName());
+end
+
+rule "DQ: E-Scooter too far"
+salience 150
+when
+  $f : Fact( context.distance_to_destination_meters > 3000 )
+then
+  $f.disqualify(Mode.E_SCOOTER, "E-scooter is not suitable because the distance is too long (>3 km).", drools.getRule().getName());
+end
 
 // ---------------------------
 // 2) SCORING RULES (WEIGHTED)
@@ -337,10 +349,10 @@ rule "SCORE: Bike sharing station near and bikes available"
 salience 65
 when
   $f : Fact( context.distance_to_next_bikesharing_station_meters >= 0,
-             context.distance_to_next_bikesharing_station_meters < 300,
+             context.distance_to_next_bikesharing_station_meters < 700,
              context.bikesAvailableAtStation == true )
 then
-  $f.addScore(Mode.BIKESHARE, 20, "A bike sharing station with available bikes is nearby.", drools.getRule().getName());
+  $f.addScore(Mode.BIKESHARE, 20, "A bike sharing station with available bikes is nearby (less than 700m).", drools.getRule().getName());
 end
 
 rule "SCORE: Preferred mode boost"
@@ -428,9 +440,9 @@ rule "SCORE: Bikeshare station far penalizes bikeshare"
 salience 64
 when
   $f : Fact( context.distance_to_next_bikesharing_station_meters >= 0,
-             context.distance_to_next_bikesharing_station_meters > 700 )
+             context.distance_to_next_bikesharing_station_meters > 1000 )
 then
-  $f.addScore(Mode.BIKESHARE, -15, "Bike sharing station is far away, making it less convenient.", drools.getRule().getName());
+  $f.addScore(Mode.BIKESHARE, -15, "Bike sharing station is far away, making it less convenient (more than 1 km).", drools.getRule().getName());
 end
 
 // ---------------------------------------------
@@ -441,7 +453,7 @@ rule "SCORE: Short distance micromobility fallback (walk not preferred)"
 salience 61
 when
   $f : Fact(
-    context.distance_to_destination_meters < 500,
+    context.distance_to_destination_meters < 2000,
     preferences.preferred_transport_modes != null
   )
 then
@@ -466,8 +478,8 @@ rule "SCORE: Short distance e-scooter fallback (walk not preferred)"
 salience 61
 when
   $f : Fact(
-    context.distance_to_destination_meters >= 500,
-    context.distance_to_destination_meters < 1000,
+    context.distance_to_destination_meters >= 2000,
+    context.distance_to_destination_meters < 3000,
     preferences.preferred_transport_modes != null
   )
 then
@@ -492,8 +504,8 @@ rule "SCORE: Medium distance bike fallback (walk not preferred)"
 salience 61
 when
   $f : Fact(
-    context.distance_to_destination_meters >= 1000,
-    context.distance_to_destination_meters < 3000,
+    context.distance_to_destination_meters >= 3000,
+    context.distance_to_destination_meters < 5000,
     preferences.preferred_transport_modes != null
   )
 then
@@ -518,8 +530,8 @@ rule "SCORE: Long medium distance e-bike fallback (walk not preferred)"
 salience 61
 when
   $f : Fact(
-    context.distance_to_destination_meters >= 3000,
-    context.distance_to_destination_meters <= 5000,
+    context.distance_to_destination_meters >= 5000,
+    context.distance_to_destination_meters <= 8000,
     preferences.preferred_transport_modes != null
   )
 then
@@ -537,6 +549,35 @@ then
 
   if (!walkPreferred) {
     $f.addScore(Mode.E_BIKE, 25, "Longer medium distance and walking is not preferred, so e-biking is favored.", drools.getRule().getName());
+  }
+end
+
+rule "SCORE: Bikeshare fallback if preferred bike not available"
+salience 62
+when
+  $f : Fact(
+      preferences.preferred_transport_modes != null,
+      context.distance_to_destination_meters <= 5000,
+      context.distance_to_next_bikesharing_station_meters >= 0,
+      context.distance_to_next_bikesharing_station_meters <= 1000
+  )
+then
+  java.util.List prefs = $f.getPreferences().getPreferred_transport_modes();
+  boolean prefersBike = false;
+  boolean ownsBike = $f.getPreferences().owns_non_electric_transport;
+  boolean ownsEBike = $f.getPreferences().owns_e_bike;
+
+  for (Object o : prefs) {
+    if (o == null) continue;
+    String p = o.toString().trim().toUpperCase().replace('-', '_').replace(' ', '_');
+    if ("BIKE".equals(p) || "E_BIKE".equals(p)) {
+        prefersBike = true;
+        break;
+    }
+  }
+
+  if (prefersBike && !ownsBike && !ownsEBike && !$f.isDisqualified(Mode.BIKESHARE)) {
+      $f.addScore(Mode.BIKESHARE, 30, "Preferred bike not available but a nearby bikesharing station exists.", drools.getRule().getName());
   }
 end
 

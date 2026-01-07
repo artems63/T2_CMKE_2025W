@@ -80,8 +80,14 @@ public class RecommendationController {
   private String fetchTripXml(
       double userLat, double userLon,
       String destinationDiva,
-      double destinationLon, double destinationLat
+      double destinationLon, double destinationLat, UserPreferencesDTO userPreferences
   ) {
+    if (!userPreferences.wants_public_transport ||
+        (!userPreferences.has_public_transport_ticket &&
+            !userPreferences.is_open_to_buy_ticket)) {
+      return "<itdRequest></itdRequest>";
+    }
+
     try {
       HaltestellenService.Stop originStop =
           haltestellenService.findClosestStop(userLat, userLon);
@@ -192,7 +198,8 @@ public class RecommendationController {
         userPreferences.lon,
         userPreferences.destination_diva,
         userPreferences.destination_lon,
-        userPreferences.destination_lat
+        userPreferences.destination_lat,
+        userPreferences
     );
 
     return parseTransportModesFromXml(xml);
@@ -339,6 +346,10 @@ public class RecommendationController {
           .collect(Collectors.joining(" - "));
 
       response.recommended_transport += " " + joinedModes;
+    }
+
+    if ("UNKNOWN".equals(response.recommended_transport)){
+      response.recommended_transport = "No recommendation possible for given preferences!";
     }
 
     logDebugInfo(

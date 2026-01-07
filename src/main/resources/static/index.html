@@ -370,13 +370,18 @@
         const owns_e_scooter = ownedTransport.includes("E-Scooter");
 
         // Keep legacy fields (if backend still expects them)
-        const owns_non_electric_transport = owns_bike;                 // ONLY BIKE
-        const owns_electric_micro_mobility = owns_e_bike || owns_e_scooter; // E-bike or E-scooter
+        const owns_non_electric_transport = owns_bike;
+        const owns_electric_micro_mobility = owns_e_bike || owns_e_scooter;
 
         const wants_public_transport = preferredTransport.includes("Public Transport");
         const wants_bike_sharing = preferredTransport.includes("Bike") || preferredTransport.includes("E-Bike");
 
-        // ---- Preferred transport modes (multi-select) ----
+        if (preferredTransport.includes("Bike") || preferredTransport.includes("E-Bike")) {
+            if (!preferredTransport.includes("Bike Sharing")) {
+                preferredTransport.push("Bike Sharing");
+            }
+        }
+
         const preferred_transport_modes = preferredTransport.map(t => {
             const raw = t.trim();
 
@@ -389,6 +394,7 @@
                 "Public Transport": "PUBLIC_TRANSPORT",
                 "Gas Car": "GAS_CAR",
                 "Electric Car": "ELECTRIC_CAR",
+                "Bike Sharing": "BIKESHARE",
             };
 
             return map[raw] ?? raw.toUpperCase().replaceAll(" ", "_").replaceAll("-", "_");
@@ -408,25 +414,18 @@
 
             const data = {
                 environmentally_sustainable,
-
-                // legacy ownership fields
                 owns_non_electric_transport,
                 owns_electric_micro_mobility,
                 owns_e_bike,
                 owns_gas_car,
                 owns_electric_car,
-
-                // NEW: scooter ownership fields (backend must support these)
                 owns_scooter,
                 owns_e_scooter,
-
                 has_public_transport_ticket,
                 is_open_to_buy_ticket,
                 wants_bike_sharing,
                 wants_public_transport,
-
                 preferred_transport_modes,
-
                 lat,
                 lon,
                 destination_text: destinationText,
