@@ -8,7 +8,6 @@ public class Fact {
 
   public enum Mode { WALK, BIKE, E_BIKE, SCOOTER, E_SCOOTER, BIKESHARE, PUBLIC_TRANSPORT, GAS_CAR, ELECTRIC_CAR }
 
-
   private final ContextDTO context;
   private final UserPreferencesDTO preferences;
 
@@ -19,11 +18,13 @@ public class Fact {
   private final List<String> rulesTriggered = new ArrayList<>();
 
   private Mode recommended;
+
   private double confidenceScore;
 
   public Fact(ContextDTO context, UserPreferencesDTO preferences) {
     this.context = context;
     this.preferences = preferences;
+
     for (Mode m : Mode.values()) {
       score.put(m, 0);
       disqualified.put(m, false);

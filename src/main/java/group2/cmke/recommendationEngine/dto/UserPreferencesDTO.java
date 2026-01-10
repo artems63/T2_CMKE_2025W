@@ -7,14 +7,12 @@ import java.util.List;
 public class UserPreferencesDTO {
   public boolean environmentally_sustainable;
 
-  // Legacy fields (keep for backward compatibility with existing rules/logic)
-  public boolean owns_non_electric_transport;        // should mean: owns BIKE
-  public boolean owns_electric_micro_mobility;       // should mean: owns E_BIKE or E_SCOOTER
+  public boolean owns_non_electric_transport;
+  public boolean owns_electric_micro_mobility;
   public boolean owns_e_bike;
   public boolean owns_gas_car;
   public boolean owns_electric_car;
 
-  // NEW: explicit scooter ownership (fixes scooter being treated as bike)
   public boolean owns_scooter;
   public boolean owns_e_scooter;
 
@@ -22,7 +20,16 @@ public class UserPreferencesDTO {
   public boolean is_open_to_buy_ticket;
   public boolean wants_bike_sharing;
   public boolean wants_public_transport;
+  public boolean wants_walking;
   public boolean weather_ok;
+
+  public boolean isWants_walking() {
+    return wants_walking;
+  }
+
+  public void setWants_walking(boolean wants_walking) {
+    this.wants_walking = wants_walking;
+  }
 
   // public String preferred_transport_mode;
   public List<String> preferred_transport_modes;

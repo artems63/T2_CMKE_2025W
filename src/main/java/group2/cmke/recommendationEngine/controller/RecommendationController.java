@@ -211,7 +211,7 @@ public class RecommendationController {
   ) {
     ContextDTO context = new ContextDTO();
     context.distance_to_destination_meters = distanceMeters;
-    context.walking_ok = distanceMeters <= 2000;
+    context.walking_ok = userPreferences.wants_walking;
     context.public_transport_best_option = transportModes;
 
     context.environmental_factor =
