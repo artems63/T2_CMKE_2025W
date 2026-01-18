@@ -1,6 +1,7 @@
 % environmental_score.pl
 
-% Base eco score per mode (0..1)
+% Represents environmental friendliness per km
+
 base_score(walk, 1.00).
 base_score(bike, 0.95).
 base_score(e_bike, 0.93).
@@ -11,33 +12,49 @@ base_score(gas_car, 0.25).
 base_score(scooter, 0.90).
 base_score(e_scooter, 0.88).
 
-
-% Penalty for bad weather for active modes (still eco-friendly, but less feasible)
-weather_penalty(true, 0.0).   % weather_ok = true
-weather_penalty(false, 0.15). % weather_ok = false -> reduce score
-
-% Distance penalty (very mild, keeps it simple and stable)
 distance_penalty(DistanceMeters, Penalty) :-
-    DistanceMeters =< 1000, Penalty is 0.00;
-    DistanceMeters =< 5000, Penalty is 0.05;
-    DistanceMeters =< 10000, Penalty is 0.10;
+    DistanceMeters =< 0, !,
+    Penalty is 0.0.
+
+distance_penalty(DistanceMeters, Penalty) :-
+    Km is DistanceMeters / 1000.0,
+    Raw is log(1 + Km) / log(1 + 15),
+    Penalty is min(0.25, Raw).
+
+mode_weather_penalty(_Mode, true, 0.0).
+
+mode_weather_penalty(Mode, false, Penalty) :-
+    member(Mode, [walk, bike, e_bike, bikeshare, scooter, e_scooter]),
     Penalty is 0.15.
 
-% Environmental factor as a general "how eco-favorable is it to choose eco modes now"
+mode_weather_penalty(Mode, false, 0.0) :-
+    member(Mode, [public_transport, electric_car, gas_car]).
+
 environmental_factor(DistanceMeters, WeatherOk, WantsSustainable, Factor) :-
     distance_penalty(DistanceMeters, DP),
-    weather_penalty(WeatherOk, WP),
-    (WantsSustainable = true -> SP is 0.05 ; SP is 0.00),
+
+    % Weather impact by distance
+    ( WeatherOk = true
+      -> WP is 0.0
+      ;  WP is DP * 0.6
+    ),
+
+    % Sustainability preference is strongest for short & medium trips
+    ( WantsSustainable = true
+      -> SP is max(0.0, 0.12 - DP)
+      ;  SP is 0.0
+    ),
+
     Raw is 1.0 - DP - WP + SP,
+    clamp01(Raw, Factor).
+
+mode_environmental_factor(Mode, DistanceMeters, WeatherOk, Factor) :-
+    base_score(Mode, Base),
+    distance_penalty(DistanceMeters, DP),
+    mode_weather_penalty(Mode, WeatherOk, WP),
+    Raw is Base - DP - WP,
     clamp01(Raw, Factor).
 
 clamp01(X, 0.0) :- X < 0.0, !.
 clamp01(X, 1.0) :- X > 1.0, !.
 clamp01(X, X).
-
-mode_environmental_factor(Mode, Distance, WeatherOk, Factor) :-
-    base_score(Mode, Base),
-    distance_penalty(Distance, DP),
-    weather_penalty(WeatherOk, WP),
-    Raw is Base - DP - WP,
-    clamp01(Raw, Factor).

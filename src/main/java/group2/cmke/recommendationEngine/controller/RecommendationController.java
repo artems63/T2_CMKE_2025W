@@ -16,9 +16,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -362,6 +364,40 @@ public class RecommendationController {
     );
 
     appendDecisionToFile(response, userPreferences.destination_text);
+
+    return cleanUpResponseNoise(response, userPreferences);
+  }
+
+  private RecommendationResponseDTO cleanUpResponseNoise(RecommendationResponseDTO response, UserPreferencesDTO userPreferences) {
+    if (response.reason != null && !response.reason.isEmpty()) {
+
+      String recommended = response.recommended_transport;
+      if (recommended.contains(" ")) {
+        recommended = recommended.split(" ")[0];
+      }
+
+      Set<String> seen = new HashSet<>();
+      List<String> cleaned = new ArrayList<>();
+
+      for (String r : response.reason) {
+        if (r == null || r.isBlank()) continue;
+        if (!seen.add(r)) continue;
+
+        String u = r.toUpperCase();
+        boolean drop =
+            (u.contains("SCOOTER") && !userPreferences.owns_scooter && !userPreferences.preferred_transport_modes.contains("SCOOTER")) ||
+                (u.contains("E-SCOOTER") && !userPreferences.owns_e_scooter && !userPreferences.preferred_transport_modes.contains("E_SCOOTER")) ||
+                (u.contains("BIKE ") && !userPreferences.owns_non_electric_transport && !userPreferences.preferred_transport_modes.contains("BIKE")) ||
+                (u.contains("E-BIKE") && !userPreferences.owns_e_bike && !userPreferences.preferred_transport_modes.contains("E_BIKE")) ||
+                (u.contains("BIKE SHARING") && !userPreferences.wants_bike_sharing) ||
+                (u.contains("GAS CAR") && !userPreferences.owns_gas_car) ||
+                (u.contains("ELECTRIC CAR") && !userPreferences.owns_electric_car);
+
+        if (!drop) cleaned.add(r);
+      }
+
+      response.reason = cleaned;
+    }
 
     return response;
   }
